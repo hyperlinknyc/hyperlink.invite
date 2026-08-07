@@ -1,0 +1,178 @@
+:root {
+  --bg: #030904;
+  --green: #33ff66;
+  --green-dim: #1d9e44;
+  --green-faint: #10662c;
+  --amber: #ffb000;
+  --glow: 0 0 5px rgba(51, 255, 102, 0.55), 0 0 24px rgba(51, 255, 102, 0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--bg);
+}
+
+body {
+  color: var(--green);
+  font-family: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono',
+    'Roboto Mono', monospace;
+  font-size: clamp(13px, 3.6vw, 16px);
+  line-height: 1.5;
+  text-shadow: var(--glow);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+::selection {
+  background: var(--green);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--green-dim);
+}
+
+/* ── screen chrome ─────────────────────────────────────────────── */
+
+.crt {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  animation: flicker 4s infinite;
+}
+
+.crt::before {
+  /* scanlines */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.22) 3px,
+    rgba(0, 0, 0, 0) 4px
+  );
+}
+
+.crt::after {
+  /* vignette + faint phosphor wash */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(51, 255, 102, 0.03) 0%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  3% { opacity: 0.985; }
+  7% { opacity: 1; }
+  49% { opacity: 0.99; }
+  50% { opacity: 0.965; }
+  51% { opacity: 1; }
+  84% { opacity: 0.992; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt { animation: none; }
+  .cursor { animation: none !important; }
+}
+
+/* ── log ───────────────────────────────────────────────────────── */
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: calc(14px + env(safe-area-inset-top)) 16px
+    calc(28px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  white-space: pre-wrap;
+  word-break: break-word;
+  scrollbar-width: none;
+}
+.log::-webkit-scrollbar {
+  display: none;
+}
+
+.line {
+  min-height: 1.5em;
+}
+
+.dim {
+  color: var(--green-dim);
+  text-shadow: 0 0 4px rgba(51, 255, 102, 0.25);
+}
+
+.warn {
+  color: var(--amber);
+  text-shadow: 0 0 5px rgba(255, 176, 0, 0.5);
+}
+
+.cursor {
+  display: inline-block;
+  width: 0.62em;
+  height: 1.15em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--green);
+  box-shadow: var(--glow);
+  animation: blink 1.06s steps(1) infinite;
+}
+
+@keyframes blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0; }
+}
+
+/* tappable [BRACKET] actions — plain text, inverse on press */
+.act {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.act:hover,
+.act:active {
+  background: var(--green);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+/* the hidden input that summons the keyboard */
+.ghost {
+  position: relative;
+  display: inline-block;
+  width: 1px;
+  height: 1px;
+  font-size: 16px; /* prevents iOS focus-zoom */
+  opacity: 0.01;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: transparent;
+  caret-color: transparent;
+}
+
+/* admin table-ish rows reuse .line; keep everything text */
+.admin-block {
+  margin: 0.75em 0;
+}
