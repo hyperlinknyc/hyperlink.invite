@@ -10,20 +10,37 @@ type CodeRow = {
   email: string | null;
   depth: number;
   position: number | null;
+  world: number;
   created_at: string;
   decided_at: string | null;
 };
 
+type Counts = {
+  accepted: number;
+  declined: number;
+  pending: number;
+  dead: number;
+  capacity: number;
+  remaining: number;
+};
+
+type Settings = {
+  edition: string;
+  eventDate: string;
+  eventTime: string;
+  hood: string;
+  igHandle: string;
+  igUrl: string;
+  capacity: number;
+  demoCapacity: number;
+};
+
 type State = {
-  counts: {
-    accepted: number;
-    declined: number;
-    pending: number;
-    dead: number;
-    capacity: number;
-    remaining: number;
-  };
+  counts: Counts;
+  demoCounts: Counts;
+  settings: Settings;
   codes: CodeRow[];
+  demoCodes: CodeRow[];
   emails: string[];
 };
 
@@ -34,13 +51,40 @@ const GLYPH: Record<CodeRow['status'], string> = {
   dead: '†',
 };
 
+const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
+  { key: 'edition', label: 'EDITION   ', hint: 'e.g. EDITION 004' },
+  { key: 'eventDate', label: 'DATE      ', hint: 'e.g. SAT 11.15' },
+  { key: 'eventTime', label: 'TIME      ', hint: 'e.g. 22:00 — 04:00' },
+  { key: 'hood', label: 'NEIGHBORHD', hint: 'shown instead of the address' },
+  { key: 'igHandle', label: 'IG HANDLE ', hint: 'e.g. @hyperlink_nyc' },
+  { key: 'igUrl', label: 'IG URL    ', hint: 'https://instagram.com/...' },
+  { key: 'capacity', label: 'CAPACITY  ', hint: 'live party cap' },
+  { key: 'demoCapacity', label: 'DEMO CAP  ', hint: 'small = fills fast' },
+];
+
+const inputStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid var(--green-faint)',
+  outline: 'none',
+  color: 'var(--green)',
+  font: 'inherit',
+  textShadow: 'inherit',
+  minWidth: 0,
+  flex: '1 1 12em',
+  padding: '1px 2px',
+};
+
 export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
   const [state, setState] = useState<State | null>(null);
   const [msg, setMsg] = useState('');
+  const [draft, setDraft] = useState<Settings | null>(null);
+  const [showDemo, setShowDemo] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dirtyRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const r = await fetch('/api/admin/state');
@@ -48,8 +92,10 @@ export default function Admin() {
       setAuthed(false);
       return;
     }
-    const data = await r.json();
+    const data: State = await r.json();
     setState(data);
+    // Don't clobber half-typed settings on the 15s auto-refresh.
+    if (!dirtyRef.current) setDraft(data.settings);
     setAuthed(true);
   }, []);
 
@@ -85,9 +131,13 @@ export default function Admin() {
     return r.json();
   }
 
-  async function generate() {
-    const res = await post('/api/admin/generate', { n: 1 });
-    setMsg(res.codes ? `MINTED SEED CODE: ${res.codes.join(' ')}` : 'MINT FAILED');
+  async function generate(demo = false) {
+    const res = await post('/api/admin/generate', { n: 1, demo });
+    setMsg(
+      res.codes
+        ? `MINTED ${demo ? 'DEMO' : 'SEED'} CODE: ${res.codes.join(' ')}`
+        : 'MINT FAILED'
+    );
     refresh();
   }
 
@@ -98,17 +148,35 @@ export default function Admin() {
     refresh();
   }
 
+  async function purgeDemo() {
+    if (!window.confirm('Wipe ALL demo codes and reset the demo counter?')) return;
+    const res = await post('/api/admin/demo-purge', {});
+    setMsg(`DEMO WORLD PURGED — ${res.removed} codes removed.`);
+    refresh();
+  }
+
+  async function saveSettings() {
+    if (!draft) return;
+    const res = await post('/api/admin/settings', draft);
+    if (res.ok) {
+      dirtyRef.current = false;
+      setMsg('SETTINGS SAVED. LIVE IMMEDIATELY — NO REDEPLOY NEEDED.');
+      refresh();
+    } else {
+      setMsg(`REJECTED: ${res.error ?? 'unknown error'}`);
+    }
+  }
+
   async function copyEmails() {
     if (!state?.emails.length) return;
     try {
       await navigator.clipboard.writeText(state.emails.join('\n'));
       setMsg(`COPIED ${state.emails.length} EMAILS.`);
     } catch {
-      setMsg('COPY FAILED — use EXPORT CSV.');
+      setMsg('CLIPBOARD REFUSED — use EXPORT CSV.');
     }
   }
 
-  // ── render helpers ─────────────────────────────────────────────
   function renderTree(codes: CodeRow[]) {
     const byIssuer = new Map<number | null, CodeRow[]>();
     for (const c of codes) {
@@ -124,9 +192,13 @@ export default function Admin() {
       out.push(
         <div className="line" key={node.id}>
           <span className="dim">{branch}</span>
-          <span>{GLYPH[node.status]} {node.code}</span>
+          <span>
+            {GLYPH[node.status]} {node.code}
+          </span>
           <span className={node.status === 'accepted' ? '' : 'dim'}>
-            {' '}{node.status.toUpperCase()}{pos}
+            {' '}
+            {node.status.toUpperCase()}
+            {pos}
             {node.email ? ` ${node.email}` : ''}
           </span>
           {node.status === 'unused' && (
@@ -141,7 +213,12 @@ export default function Admin() {
       );
       const kids = byIssuer.get(node.id) ?? [];
       kids.forEach((kid, i) =>
-        walk(kid, isRoot ? '' : prefix + (isLast ? '   ' : '│  '), i === kids.length - 1, false)
+        walk(
+          kid,
+          isRoot ? '' : prefix + (isLast ? '   ' : '│  '),
+          i === kids.length - 1,
+          false
+        )
       );
     };
     const roots = byIssuer.get(null) ?? [];
@@ -149,7 +226,6 @@ export default function Admin() {
     return out;
   }
 
-  // ── screens ────────────────────────────────────────────────────
   if (authed === null) {
     return (
       <div className="crt">
@@ -175,15 +251,7 @@ export default function Admin() {
               onChange={(e) => setPw(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && login()}
               autoFocus
-              style={{
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--green)',
-                font: 'inherit',
-                textShadow: 'inherit',
-                width: '14em',
-              }}
+              style={{ ...inputStyle, borderBottom: 'none', width: '14em' }}
             />
           </div>
           {err && <div className="line warn">{err}</div>}
@@ -193,6 +261,8 @@ export default function Admin() {
   }
 
   const c = state?.counts;
+  const d = state?.demoCounts;
+
   return (
     <div className="crt">
       <div className="log">
@@ -206,15 +276,70 @@ export default function Admin() {
           </div>
         )}
         <div className="admin-block">
-          <span className="act" onClick={generate}>[+ MINT SEED CODE]</span>{' '}
-          <span className="act" onClick={copyEmails}>[COPY ALL EMAILS]</span>{' '}
+          <span className="act" onClick={() => generate(false)}>
+            [+ MINT SEED CODE]
+          </span>{' '}
+          <span className="act" onClick={copyEmails}>
+            [COPY ALL EMAILS]
+          </span>{' '}
           <a className="act" href="/api/admin/export" style={{ textDecoration: 'none' }}>
             [EXPORT CSV]
           </a>{' '}
-          <span className="act" onClick={refresh}>[REFRESH]</span>
+          <span className="act" onClick={refresh}>
+            [REFRESH]
+          </span>
         </div>
         {msg && <div className="line warn">{msg}</div>}
 
+        {/* ── EVENT SETTINGS ─────────────────────────────────────── */}
+        <div className="admin-block">
+          <div className="line dim">── EVENT SETTINGS ───────────────────</div>
+          <div className="line dim">
+            Edit and save. Takes effect immediately for everyone — no redeploy.
+          </div>
+          {draft &&
+            FIELDS.map((f) => (
+              <div
+                className="line"
+                key={f.key}
+                style={{ display: 'flex', gap: '0.5em', alignItems: 'baseline' }}
+              >
+                <span style={{ whiteSpace: 'pre' }}>{f.label} </span>
+                <input
+                  style={inputStyle}
+                  value={String(draft[f.key] ?? '')}
+                  inputMode={
+                    f.key === 'capacity' || f.key === 'demoCapacity' ? 'numeric' : 'text'
+                  }
+                  onChange={(e) => {
+                    dirtyRef.current = true;
+                    setDraft({ ...draft, [f.key]: e.target.value });
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && saveSettings()}
+                />
+                <span className="dim" style={{ flex: '0 0 auto' }}>
+                  {f.hint}
+                </span>
+              </div>
+            ))}
+          <div className="line">
+            <span className="act" onClick={saveSettings}>
+              [SAVE SETTINGS]
+            </span>{' '}
+            <span
+              className="act"
+              onClick={() => {
+                dirtyRef.current = false;
+                setDraft(state?.settings ?? null);
+                setMsg('REVERTED.');
+              }}
+            >
+              [REVERT]
+            </span>
+          </div>
+        </div>
+
+        {/* ── INVITE CHAIN ───────────────────────────────────────── */}
         <div className="admin-block">
           <div className="line dim">── INVITE CHAIN ─────────────────────</div>
           {state && state.codes.length > 0 ? (
@@ -224,14 +349,59 @@ export default function Admin() {
           )}
         </div>
 
+        {/* ── DEMO WORLD ─────────────────────────────────────────── */}
         <div className="admin-block">
-          <div className="line dim">── EMAILS ({state?.emails.length ?? 0}) ─────────────</div>
+          <div className="line dim">
+            ── DEMO WORLD ───────────────────────{' '}
+            <span className="act" onClick={() => setShowDemo(!showDemo)}>
+              [{showDemo ? 'HIDE' : 'SHOW'}]
+            </span>
+          </div>
+          {showDemo && (
+            <>
+              <div className="line dim">
+                A full copy of the party mechanics with its own counter. Demo
+                codes run the real flow but never touch the guest list, emails,
+                or CSV export.
+              </div>
+              {d && (
+                <div className="line">
+                  DEMO ACCEPTED {d.accepted}/{d.capacity} · REMAINING {d.remaining} ·
+                  PENDING {d.pending} · DECLINED {d.declined} · DEAD {d.dead}
+                </div>
+              )}
+              <div className="line">
+                <span className="act" onClick={() => generate(true)}>
+                  [+ MINT DEMO CODE]
+                </span>{' '}
+                <span className="act" onClick={purgeDemo}>
+                  [PURGE DEMO WORLD]
+                </span>
+              </div>
+              {state && state.demoCodes.length > 0 ? (
+                renderTree(state.demoCodes)
+              ) : (
+                <div className="line dim">
+                  NO DEMO CODES. MINT ONE AND OPEN IT ON THE MAIN SITE.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── EMAILS ─────────────────────────────────────────────── */}
+        <div className="admin-block">
+          <div className="line dim">
+            ── EMAILS ({state?.emails.length ?? 0}) ─────────────
+          </div>
           {state?.emails.map((e, i) => (
-            <div className="line" key={i}>{e}</div>
+            <div className="line" key={i}>
+              {e}
+            </div>
           ))}
         </div>
 
-        <div className="line dim">AUTO-REFRESH 15S · {new Date().toLocaleTimeString()}</div>
+        <div className="line dim">AUTO-REFRESH 15S</div>
       </div>
     </div>
   );

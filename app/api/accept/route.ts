@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { normalizeCode, isPlausibleCode } from '@/lib/codes';
 import { acceptInvite } from '@/lib/invites';
 import { clientIp, overLimit } from '@/lib/rateLimit';
-import { CAPACITY } from '@/lib/config';
+import { WORLD_DEMO } from '@/lib/defaults';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,8 +28,9 @@ export async function POST(req: Request) {
   return NextResponse.json({
     result: 'accepted',
     position: res.position,
-    capacity: CAPACITY,
+    capacity: res.capacity,
     spotsRemaining: res.spotsRemaining,
     childCode: res.childCode,
+    demo: res.world === WORLD_DEMO,
   });
 }

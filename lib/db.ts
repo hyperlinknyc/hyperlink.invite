@@ -4,13 +4,32 @@
 // exact same SQL (CTEs, FOR UPDATE, constraints) runs in both places.
 
 type Row = Record<string, unknown>;
+type Stmt = string | [string, unknown[]];
 
-const SCHEMA = [
+import { DEFAULTS, WORLD_LIVE, WORLD_DEMO } from './defaults';
+
+const SCHEMA: Stmt[] = [
+  // ── event_state: one row per world (1 = live party, 2 = demo sandbox) ──
   `CREATE TABLE IF NOT EXISTS event_state (
-    id INT PRIMARY KEY CHECK (id = 1),
-    accepted_count INT NOT NULL DEFAULT 0 CHECK (accepted_count >= 0)
+    id INT PRIMARY KEY,
+    accepted_count INT NOT NULL DEFAULT 0 CHECK (accepted_count >= 0),
+    capacity INT NOT NULL DEFAULT 40 CHECK (capacity >= 0)
   )`,
-  `INSERT INTO event_state (id, accepted_count) VALUES (1, 0) ON CONFLICT (id) DO NOTHING`,
+  // Installs predating the demo world had CHECK (id = 1) and no capacity column.
+  `ALTER TABLE event_state DROP CONSTRAINT IF EXISTS event_state_id_check`,
+  `ALTER TABLE event_state ADD COLUMN IF NOT EXISTS capacity INT NOT NULL DEFAULT 40`,
+  [
+    `INSERT INTO event_state (id, accepted_count, capacity)
+     VALUES ($1, 0, $2) ON CONFLICT (id) DO NOTHING`,
+    [WORLD_LIVE, DEFAULTS.capacity],
+  ],
+  [
+    `INSERT INTO event_state (id, accepted_count, capacity)
+     VALUES ($1, 0, $2) ON CONFLICT (id) DO NOTHING`,
+    [WORLD_DEMO, DEFAULTS.demoCapacity],
+  ],
+
+  // ── codes ──────────────────────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS codes (
     id SERIAL PRIMARY KEY,
     code TEXT UNIQUE NOT NULL,
@@ -19,10 +38,40 @@ const SCHEMA = [
     issuer_id INT REFERENCES codes(id),
     email TEXT,
     depth INT NOT NULL DEFAULT 0,
-    position INT UNIQUE,
+    position INT,
+    world INT NOT NULL DEFAULT 1,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     decided_at TIMESTAMPTZ
   )`,
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS world INT NOT NULL DEFAULT 1`,
+  // Position is unique per world, not globally.
+  `ALTER TABLE codes DROP CONSTRAINT IF EXISTS codes_position_key`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS codes_world_position
+     ON codes (world, position)`,
+
+  // ── event settings, editable from the admin console ────────────────────
+  `CREATE TABLE IF NOT EXISTS settings (
+    id INT PRIMARY KEY,
+    edition TEXT NOT NULL,
+    event_date TEXT NOT NULL,
+    event_time TEXT NOT NULL,
+    hood TEXT NOT NULL,
+    ig_handle TEXT NOT NULL,
+    ig_url TEXT NOT NULL
+  )`,
+  [
+    `INSERT INTO settings (id, edition, event_date, event_time, hood, ig_handle, ig_url)
+     VALUES (1, $1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+    [
+      DEFAULTS.edition,
+      DEFAULTS.eventDate,
+      DEFAULTS.eventTime,
+      DEFAULTS.hood,
+      DEFAULTS.igHandle,
+      DEFAULTS.igUrl,
+    ],
+  ],
+
   `CREATE TABLE IF NOT EXISTS attempts (
     id SERIAL PRIMARY KEY,
     ip TEXT NOT NULL,
@@ -59,7 +108,10 @@ async function rawQuery(text: string, params: unknown[] = []): Promise<Row[]> {
 async function ensureSchema(): Promise<void> {
   if (!g.__hl_schema_ready) {
     g.__hl_schema_ready = (async () => {
-      for (const stmt of SCHEMA) await rawQuery(stmt);
+      for (const stmt of SCHEMA) {
+        if (typeof stmt === 'string') await rawQuery(stmt);
+        else await rawQuery(stmt[0], stmt[1]);
+      }
     })().catch((e) => {
       g.__hl_schema_ready = undefined; // allow retry on next request
       throw e;

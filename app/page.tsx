@@ -8,17 +8,32 @@ import {
   Screen,
   useTypewriter,
 } from '@/components/Terminal';
-import {
-  EVENT_DATE,
-  EVENT_EDITION,
-  EVENT_HOOD,
-  EVENT_NAME,
-  EVENT_TIME,
-  IG_HANDLE,
-  IG_URL,
-} from '@/lib/config';
+import { DEFAULTS } from '@/lib/defaults';
+
+const EVENT_NAME = 'HYPERLINK';
 
 type Phase = 'boot' | 'code' | 'decision' | 'confirmDecline' | 'email' | 'end';
+
+// Event copy is served by /api/status so it can be changed from the admin
+// console without a redeploy. DEFAULTS is only the fallback if that fetch
+// fails — the terminal should still read correctly during an outage.
+type Settings = {
+  edition: string;
+  eventDate: string;
+  eventTime: string;
+  hood: string;
+  igHandle: string;
+  igUrl: string;
+};
+
+const FALLBACK: Settings = {
+  edition: DEFAULTS.edition,
+  eventDate: DEFAULTS.eventDate,
+  eventTime: DEFAULTS.eventTime,
+  hood: DEFAULTS.hood,
+  igHandle: DEFAULTS.igHandle,
+  igUrl: DEFAULTS.igUrl,
+};
 
 type Session = {
   code: string;
@@ -26,6 +41,8 @@ type Session = {
   position: number;
   capacity: number;
   childCode: string | null;
+  demo?: boolean;
+  settings?: Settings;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -79,13 +96,25 @@ function boxAround(code: string): Line[] {
   ];
 }
 
-function revealLines(spotsRemaining: number, capacity: number): Line[] {
+// Marks a demo run so a sandbox pass is never mistaken for the real thing.
+const DEMO_BANNER: Line[] = [
+  L('*** SIMULATION — DEMO WORLD. NOT THE REAL GUEST LIST. ***', 'warn'),
+  BLANK,
+];
+
+function revealLines(
+  spotsRemaining: number,
+  capacity: number,
+  s: Settings,
+  demo: boolean
+): Line[] {
   return [
     L('KEY ACCEPTED. DECRYPTING INVITATION ...', 'dim'),
     BLANK,
-    L(`${EVENT_NAME} — ${EVENT_EDITION}`),
-    L(`${EVENT_DATE} // ${EVENT_TIME}`),
-    L(EVENT_HOOD),
+    ...(demo ? DEMO_BANNER : []),
+    L(`${EVENT_NAME} — ${s.edition}`),
+    L(`${s.eventDate} // ${s.eventTime}`),
+    L(s.hood),
     L('COVER: NONE. BAR: BYOB.'),
     L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`),
     L('EXACT LOCATION: TRANSMITTED LATER. KEEP READING.', 'dim'),
@@ -134,7 +163,7 @@ const DECLINED_LINES: Line[] = [
   L('// CARRIER LOST', 'dim'),
 ];
 
-function emailPromptLines(): Line[] {
+function emailPromptLines(cfg: Settings): Line[] {
   return [
     BLANK,
     L('COMMITMENT LOGGED. TWO REQUIREMENTS REMAIN.'),
@@ -142,7 +171,7 @@ function emailPromptLines(): Line[] {
     {
       spans: [
         { t: '[1] FOLLOW ' },
-        { t: IG_HANDLE, href: IG_URL },
+        { t: cfg.igHandle, href: cfg.igUrl },
         { t: ' ON INSTAGRAM. MANDATORY.' },
       ],
     },
@@ -152,7 +181,7 @@ function emailPromptLines(): Line[] {
     {
       spans: [
         { t: '    ' },
-        { t: '>> OPEN INSTAGRAM <<', href: IG_URL },
+        { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl },
       ],
     },
     BLANK,
@@ -162,14 +191,19 @@ function emailPromptLines(): Line[] {
 }
 
 function payoffLines(s: Session, origin: string, restored = false): Line[] {
+  // A restored session replays the copy captured at accept time.
+  const cfg = s.settings ?? FALLBACK;
   const shareUrl = `${origin}/?c=${s.childCode}`;
-  const head: Line[] = restored
-    ? [
-        L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
-        BLANK,
-        L(`YOU ARE ALREADY IN THE CHAIN, ${s.email}.`),
-      ]
-    : [L(`${s.email} — VERIFIED.`)];
+  const head: Line[] = [
+    ...(s.demo ? DEMO_BANNER : []),
+    ...(restored
+      ? [
+          L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
+          BLANK,
+          L(`YOU ARE ALREADY IN THE CHAIN, ${s.email}.`),
+        ]
+      : [L(`${s.email} — VERIFIED.`)]),
+  ];
 
   const seat: Line[] = [
     L(
@@ -186,8 +220,8 @@ function payoffLines(s: Session, origin: string, restored = false): Line[] {
       L('YOU TOOK THE FINAL SEAT.', 'warn'),
       L('THE CHAIN ENDS WITH YOU. NO FURTHER INVITATIONS EXIST.'),
       BLANK,
-      L(`REMINDER: THE ADDRESS DROPS VIA ${IG_HANDLE}. BE FOLLOWING.`),
-      L(`${EVENT_DATE} // ${EVENT_HOOD} // BYOB`),
+      L(`REMINDER: THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
+      L(`${cfg.eventDate} // ${cfg.hood} // BYOB`),
       BLANK,
       L('SEE YOU IN THE DARK.'),
       L('// CONNECTION ARCHIVED', 'dim'),
@@ -215,8 +249,8 @@ function payoffLines(s: Session, origin: string, restored = false): Line[] {
     L('IF THEY DECLINE, IT DIES WITH THEM.'),
     L('DO NOT POST IT PUBLICLY.', 'warn'),
     BLANK,
-    L(`REMINDER: THE ADDRESS DROPS VIA ${IG_HANDLE}. BE FOLLOWING.`),
-    L(`${EVENT_DATE} // ${EVENT_HOOD} // BYOB`),
+    L(`REMINDER: THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
+    L(`${cfg.eventDate} // ${cfg.hood} // BYOB`),
     BLANK,
     L('SEE YOU IN THE DARK.'),
     L('// CONNECTION ARCHIVED', 'dim'),
@@ -238,6 +272,8 @@ export default function Home() {
   const denialsRef = useRef(0);
   const submittingRef = useRef(false);
   const bootedRef = useRef(false);
+  const settingsRef = useRef<Settings>(FALLBACK);
+  const demoRef = useRef(false);
 
   const origin =
     typeof window !== 'undefined' ? window.location.origin : 'https://hyperlink.nyc';
@@ -250,6 +286,7 @@ export default function Home() {
       const statusP = fetch('/api/status').then((r) => r.json()).catch(() => null);
       await typeLines(BOOT);
       const status = await statusP;
+      if (status?.settings) settingsRef.current = status.settings;
 
       // Returning guest: restore their minted code from this device.
       let saved: Session | null = null;
@@ -263,7 +300,13 @@ export default function Home() {
         return;
       }
 
-      if (status?.full) {
+      // Share links arrive as /?c=CODE.
+      const c = new URLSearchParams(window.location.search).get('c');
+
+      // Only seal the door for someone arriving empty-handed. A code in hand
+      // gets validated on its own terms — that's what keeps demo codes usable
+      // after the real party has filled, and a real code still hears 'full'.
+      if (status?.full && !c) {
         await typeLines(FULL_LINES);
         setPhase('end');
         return;
@@ -272,8 +315,6 @@ export default function Home() {
       await typeLines([L('ENTER ACCESS CODE')]);
       setPhase('code');
 
-      // Share links arrive as /?c=CODE — auto-type the code for them.
-      const c = new URLSearchParams(window.location.search).get('c');
       if (c) {
         const clean = c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
         for (let i = 1; i <= clean.length; i++) {
@@ -310,7 +351,10 @@ export default function Home() {
     const res = await api('/api/code', { code: value });
     if (res?.result === 'valid') {
       codeRef.current = res.code;
-      await typeLines(revealLines(res.spotsRemaining, res.capacity));
+      demoRef.current = !!res.demo;
+      await typeLines(
+        revealLines(res.spotsRemaining, res.capacity, settingsRef.current, !!res.demo)
+      );
       setPhase('decision');
     } else if (res?.result === 'dead') {
       await typeLines(DEAD_LINES);
@@ -335,7 +379,7 @@ export default function Home() {
     const v = value.toUpperCase();
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
-      await typeLines(emailPromptLines());
+      await typeLines(emailPromptLines(settingsRef.current));
       setPhase('email');
     } else if (['DECLINE', 'D', 'NO', 'N'].includes(v)) {
       await typeLines(CONFIRM_DECLINE);
@@ -350,7 +394,7 @@ export default function Home() {
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
       await typeLines([L('RECONSIDERED. WISE.', 'dim')]);
-      await typeLines(emailPromptLines());
+      await typeLines(emailPromptLines(settingsRef.current));
       setPhase('email');
       return;
     }
@@ -384,10 +428,13 @@ export default function Home() {
         position: res.position,
         capacity: res.capacity,
         childCode: res.childCode,
+        demo: !!res.demo,
+        settings: settingsRef.current,
       };
       sessionRef.current = session;
       try {
-        localStorage.setItem('hl_session', JSON.stringify(session));
+        // A demo run must not overwrite a real guest's saved session.
+        if (!session.demo) localStorage.setItem('hl_session', JSON.stringify(session));
       } catch {}
       await typeLines(payoffLines(session, origin));
       setPhase('end');

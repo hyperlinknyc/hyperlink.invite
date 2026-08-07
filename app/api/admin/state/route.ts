@@ -1,27 +1,53 @@
 import { NextResponse } from 'next/server';
 import { isAuthed } from '@/lib/adminAuth';
-import { allCodes, acceptedCount } from '@/lib/invites';
-import { CAPACITY } from '@/lib/config';
+import { allCodes, worldState } from '@/lib/invites';
+import { getSettings } from '@/lib/settings';
+import { WORLD_DEMO, WORLD_LIVE } from '@/lib/defaults';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   if (!isAuthed(req)) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const codes = await allCodes();
-  const accepted = await acceptedCount();
-  const counts = {
-    accepted,
-    declined: codes.filter((c) => c.status === 'declined').length,
-    pending: codes.filter((c) => c.status === 'unused').length,
-    dead: codes.filter((c) => c.status === 'dead').length,
-    capacity: CAPACITY,
-    remaining: Math.max(0, CAPACITY - accepted),
-  };
-  const emails = codes
+  const [codes, live, demo, settings] = await Promise.all([
+    allCodes(),
+    worldState(WORLD_LIVE),
+    worldState(WORLD_DEMO),
+    getSettings(),
+  ]);
+
+  const liveCodes = codes.filter((c) => c.world === WORLD_LIVE);
+  const demoCodes = codes.filter((c) => c.world === WORLD_DEMO);
+
+  const tally = (rows: typeof codes) => ({
+    declined: rows.filter((c) => c.status === 'declined').length,
+    pending: rows.filter((c) => c.status === 'unused').length,
+    dead: rows.filter((c) => c.status === 'dead').length,
+  });
+
+  // Emails are live-world only — demo runs never pollute the guest list.
+  const emails = liveCodes
     .filter((c) => c.status === 'accepted' && c.email)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
     .map((c) => c.email as string);
 
-  return NextResponse.json({ ok: true, counts, codes, emails });
+  return NextResponse.json({
+    ok: true,
+    counts: {
+      accepted: live.accepted,
+      capacity: live.capacity,
+      remaining: live.remaining,
+      ...tally(liveCodes),
+    },
+    demoCounts: {
+      accepted: demo.accepted,
+      capacity: demo.capacity,
+      remaining: demo.remaining,
+      ...tally(demoCodes),
+    },
+    settings,
+    codes: liveCodes,
+    demoCodes,
+    emails,
+  });
 }
