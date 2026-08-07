@@ -453,10 +453,10 @@ export default function Home() {
           print(
             ok
               ? [L('COPIED TO CLIPBOARD.', 'dim')]
-              : [L(`COPY FAILED — WRITE IT DOWN: ${text}`, 'warn')]
+              : [L('CLIPBOARD REFUSED. SELECT THE LINE ABOVE BY HAND.', 'warn')]
           );
         } catch {
-          print([L(`COPY FAILED — WRITE IT DOWN: ${text}`, 'warn')]);
+          print([L('CLIPBOARD REFUSED. SELECT THE LINE ABOVE BY HAND.', 'warn')]);
         }
       }
     }

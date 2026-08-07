@@ -17,3 +17,11 @@ out/
 next-env.d.ts
 .vercel
 .env*
+
+# pulled production credentials (operator use only)
+.env.production.local
+
+# vendor agent skills installed by integrations
+.agents/
+.claude/skills/
+skills-lock.json

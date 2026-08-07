@@ -1,8 +1,12 @@
 # HYPERLINK — party runbook
 
 Plain-English guide for running the invite chain and the night itself.
-Everything happens at **hyperlink.nyc/admin** (password is `ADMIN_PASSWORD`
-in your env vars — never in this repo).
+Everything happens at the admin console:
+
+**https://hyperlink-invite.vercel.app/admin**
+(becomes `hyperlink.nyc/admin` once the domain is attached)
+
+The password is in your password manager — it is not in this repo.
 
 ## Before you send anything
 
@@ -53,6 +57,26 @@ and who invited them — sort by `position` and that's your door list.
   (child code) can be `[KILL]`ed to stop their branch.
 - **Rate-limit lockout** (someone hammered codes from a shared IP, e.g.
   venue wifi): it clears itself after 10 minutes of quiet.
-- **Nuclear reset** (before the party only!): Neon dashboard → SQL editor
-  → `TRUNCATE codes, attempts RESTART IDENTITY; UPDATE event_state SET
-  accepted_count = 0;` — wipes every code and email. Then mint new seeds.
+- **Nuclear reset** (before the party only!) — wipes every code and email:
+
+  ```bash
+  vercel env pull .env.production.local --environment=production
+  npx tsx scripts/admin-sql.ts reset --yes-wipe-everything
+  rm .env.production.local
+  ```
+
+  Then mint new seed codes in the admin console.
+
+## What guests see if something goes wrong
+
+Worth knowing so you can answer a confused DM:
+
+- **"CARRIER FAULT. THE NODE DID NOT ANSWER."** — the site couldn't reach
+  the database. Their code is untouched and still works. Tell them to wait
+  a minute and re-enter it.
+- **"KEY REJECTED / THE LINK IS DEAD"** — that code was genuinely used or
+  burned already.
+- **"CAPACITY REACHED / NODE CLOSED"** — the party is full. Every unused
+  code died at that moment.
+- **"ACCESS DENIED"** — the code doesn't exist. Usually a typo; the site
+  ignores case, spaces, and dashes, so it's a real mismatch.
