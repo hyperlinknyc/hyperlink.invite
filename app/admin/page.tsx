@@ -86,6 +86,11 @@ export default function Admin() {
   const [msg, setMsg] = useState('');
   const [draft, setDraft] = useState<Settings | null>(null);
   const [showDemo, setShowDemo] = useState(false);
+  const [handoff, setHandoff] = useState<{
+    code: string;
+    link: string;
+    masked: string;
+  } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dirtyRef = useRef(false);
 
@@ -148,6 +153,51 @@ export default function Admin() {
     if (!window.confirm(`KILL ${code}? THIS CANNOT BE UNDONE.`)) return;
     const res = await post('/api/admin/kill', { code });
     setMsg(res.killed ? `KILLED ${code}` : `${code} WAS NOT KILLABLE (not unused)`);
+    refresh();
+  }
+
+  /** Copy a code (or its link) straight from the tree. */
+  async function copyCode(code: string, asLink: boolean) {
+    const text = asLink ? `${window.location.origin}/?c=${code}` : code;
+    try {
+      await navigator.clipboard.writeText(text);
+      setMsg(`COPIED: ${text}`);
+    } catch {
+      setMsg(`CLIPBOARD REFUSED — ${text}`);
+    }
+  }
+
+  /**
+   * Aim an unused code at a phone number. Reuses the same endpoint guests
+   * use, so a seed code gets the same last-4 binding an invitee's code has —
+   * a screenshotted seed can no longer be redeemed by whoever sees it.
+   */
+  async function aim(code: string) {
+    const phone = window.prompt(
+      `Bind ${code} to a phone number?\n\n` +
+        `They'll need its last 4 digits to open the invite, so a forwarded ` +
+        `screenshot is useless. Leave blank to cancel.`
+    );
+    if (!phone?.trim()) return;
+    const res = await post('/api/invite', { code, phone: phone.trim() });
+    if (res.result === 'badphone') {
+      setMsg(`REJECTED: ${res.error}`);
+      return;
+    }
+    if (res.result === 'already') {
+      setMsg(`${code} IS ALREADY AIMED AT ${res.masked}. UNBIND FIRST.`);
+      return;
+    }
+    if (res.result !== 'handoff' && res.result !== 'sent') {
+      setMsg(`FAILED: ${res.result}`);
+      return;
+    }
+    setHandoff({ code, link: res.handoffLink ?? '', masked: res.masked });
+    setMsg(
+      res.result === 'sent'
+        ? `TEXTED ${res.masked}.`
+        : `${code} BOUND TO ${res.masked}. TAP THE LINK BELOW TO SEND IT.`
+    );
     refresh();
   }
 
@@ -229,6 +279,19 @@ export default function Admin() {
           {node.status === 'unused' && (
             <>
               {' '}
+              <span className="act" onClick={() => copyCode(node.code, false)}>
+                [COPY]
+              </span>{' '}
+              <span className="act" onClick={() => copyCode(node.code, true)}>
+                [COPY LINK]
+              </span>{' '}
+              {!node.invitee_phone && (
+                <>
+                  <span className="act" onClick={() => aim(node.code)}>
+                    [AIM AT PHONE]
+                  </span>{' '}
+                </>
+              )}
               <span className="act" onClick={() => kill(node.code)}>
                 [KILL]
               </span>
@@ -323,6 +386,20 @@ export default function Admin() {
           </span>
         </div>
         {msg && <div className="line warn">{msg}</div>}
+        {handoff?.link && (
+          <div className="admin-block">
+            <div className="line">
+              <a href={handoff.link}>&gt;&gt; SEND {handoff.code} TO {handoff.masked} &lt;&lt;</a>{' '}
+              <span className="act" onClick={() => setHandoff(null)}>
+                [DISMISS]
+              </span>
+            </div>
+            <div className="line dim">
+              Opens Messages on a phone. On desktop, open /admin from your
+              phone instead — or just [COPY LINK] and send it however you like.
+            </div>
+          </div>
+        )}
 
         {/* ── EVENT SETTINGS ─────────────────────────────────────── */}
         <div className="admin-block">
