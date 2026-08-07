@@ -36,6 +36,12 @@ const DENIALS = [
   'ACCESS DENIED. THIS ATTEMPT HAS BEEN LOGGED.',
 ];
 
+// Shown when the backend is unreachable — never blame the guest's code.
+const FAULT_LINES: Line[] = [
+  L('CARRIER FAULT. THE NODE DID NOT ANSWER.', 'warn'),
+  L('YOUR CODE IS INTACT. WAIT AND TRANSMIT AGAIN.', 'dim'),
+];
+
 const BOOT: Line[] = [
   L(`${EVENT_NAME} PRIVATE NODE [BK-03]`),
   L('CARRIER DETECTED ..... 300 BAUD', 'dim'),
@@ -317,6 +323,8 @@ export default function Home() {
         L('TOO MANY ATTEMPTS. TRACE INITIATED.', 'warn'),
         L('COOL DOWN. TRY AGAIN LATER.', 'dim'),
       ]);
+    } else if (res?.result === 'error') {
+      await typeLines(FAULT_LINES);
     } else {
       const msg = DENIALS[Math.min(denialsRef.current++, DENIALS.length - 1)];
       await typeLines([L(msg, 'warn'), L('ENTER ACCESS CODE')]);
@@ -348,11 +356,12 @@ export default function Home() {
     }
     if (['DECLINE', 'D'].includes(v)) {
       const res = await api('/api/decline', { code: codeRef.current });
-      if (res?.result === 'declined') {
-        await typeLines(DECLINED_LINES);
-      } else {
-        await typeLines(DEAD_LINES);
+      if (res?.result === 'error') {
+        // Nothing was burned — keep them here rather than dead-ending them.
+        await typeLines(FAULT_LINES);
+        return;
       }
+      await typeLines(res?.result === 'declined' ? DECLINED_LINES : DEAD_LINES);
       setPhase('end');
       return;
     }
@@ -396,10 +405,13 @@ export default function Home() {
     } else if (res?.result === 'ratelimited') {
       await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
     } else {
-      await typeLines([L('TRANSMISSION FAULT. TRY AGAIN.', 'warn')]);
+      // Includes 'error' — stay in the email phase so they can retransmit.
+      await typeLines(FAULT_LINES);
     }
   }
 
+  // Returns { result: 'error' } when the node is unreachable or faulting, so
+  // an outage never gets mistaken for a rejected code.
   async function api(path: string, body: unknown) {
     try {
       const r = await fetch(path, {
@@ -407,9 +419,10 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!r.ok && r.status !== 429) return { result: 'error' };
       return await r.json();
     } catch {
-      return null;
+      return { result: 'error' };
     }
   }
 
