@@ -90,13 +90,15 @@ export async function acceptInvite(code: string, email: string): Promise<AcceptR
       }
 
       // Statement was a no-op — figure out why.
-      const status = await codeStatus(code);
-      if (status === null) return { ok: false, reason: 'invalid' };
-      if (status === 'unused') {
-        // Code was fine but the capacity gate refused: the room just filled.
+      // A full room outranks the code's own status: someone who lost the race
+      // by milliseconds should hear "the last seat went", not "your code was
+      // already spent" (a concurrent accept may have burned it a beat earlier).
+      if (await isFull()) {
         await killAllUnused();
         return { ok: false, reason: 'full' };
       }
+      const status = await codeStatus(code);
+      if (status === null) return { ok: false, reason: 'invalid' };
       return { ok: false, reason: 'dead' };
     } catch (e: unknown) {
       // 23505 = unique_violation: freak collision on the generated child code — retry.
