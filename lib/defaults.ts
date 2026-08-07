@@ -12,8 +12,8 @@ export const DEFAULTS = {
   eventDate: 'FRI 08.22',
   eventTime: '21:00 — 00:00',
   hood: 'EAST WILLIAMSBURG, BROOKLYN',
-  igHandle: '@hyperlink_nyc',
-  igUrl: 'https://instagram.com/hyperlink_nyc',
+  igHandle: '@hyperlink.nyc',
+  igUrl: 'https://instagram.com/hyperlink.nyc',
   capacity: 40,
   // Small on purpose: lets you hit the "room is full" state in a few clicks.
   demoCapacity: 5,

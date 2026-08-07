@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { normalizeCode, isPlausibleCode } from '@/lib/codes';
-import { acceptInvite } from '@/lib/invites';
+import { acceptInvite, codeInfo, phoneMatches } from '@/lib/invites';
 import { clientIp, overLimit } from '@/lib/rateLimit';
 import { WORLD_DEMO } from '@/lib/defaults';
 
@@ -20,6 +20,13 @@ export async function POST(req: Request) {
   if (!isPlausibleCode(code)) return NextResponse.json({ result: 'invalid' });
   if (!EMAIL_RE.test(email) || email.length > 254) {
     return NextResponse.json({ result: 'bademail' });
+  }
+
+  // Re-check the phone binding here, not just in /api/code — this is the
+  // route that actually consumes a seat, so it cannot be skipped.
+  const info = await codeInfo(code);
+  if (info?.inviteePhone && !phoneMatches(info.inviteePhone, String(body.last4 ?? ''))) {
+    return NextResponse.json({ result: 'wrongphone' });
   }
 
   const res = await acceptInvite(code, email);

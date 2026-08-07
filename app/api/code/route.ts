@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { normalizeCode, isPlausibleCode } from '@/lib/codes';
-import { codeInfo, isFull, worldState, killAllUnused } from '@/lib/invites';
+import {
+  codeInfo,
+  isFull,
+  worldState,
+  killAllUnused,
+  phoneMatches,
+} from '@/lib/invites';
 import { clientIp, overLimit } from '@/lib/rateLimit';
 import { WORLD_DEMO } from '@/lib/defaults';
 
@@ -35,6 +41,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: 'full' });
   }
   if (info.status !== 'unused') return NextResponse.json({ result: 'dead' });
+
+  // Bound to a number: prove you are the person it was addressed to.
+  if (info.inviteePhone) {
+    const last4 = String(body.last4 ?? '');
+    if (!last4) return NextResponse.json({ result: 'needverify' });
+    if (!phoneMatches(info.inviteePhone, last4)) {
+      return NextResponse.json({ result: 'wrongphone' });
+    }
+  }
 
   return NextResponse.json({
     result: 'valid',

@@ -44,6 +44,13 @@ const SCHEMA: Stmt[] = [
     decided_at TIMESTAMPTZ
   )`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS world INT NOT NULL DEFAULT 1`,
+  // Invitations are delivered by text: the issuer supplies their friend's
+  // number plus a passphrase only the two of them would recognise.
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS invitee_phone TEXT`,
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS passphrase TEXT`,
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS sms_status TEXT`,
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS sms_error TEXT`,
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS sms_at TIMESTAMPTZ`,
   // Position is unique per world, not globally.
   `ALTER TABLE codes DROP CONSTRAINT IF EXISTS codes_position_key`,
   `CREATE UNIQUE INDEX IF NOT EXISTS codes_world_position

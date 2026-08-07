@@ -12,7 +12,15 @@ import { DEFAULTS } from '@/lib/defaults';
 
 const EVENT_NAME = 'HYPERLINK';
 
-type Phase = 'boot' | 'code' | 'decision' | 'confirmDecline' | 'email' | 'end';
+type Phase =
+  | 'boot'
+  | 'code'
+  | 'decision'
+  | 'confirmDecline'
+  | 'email'
+  | 'phone'
+  | 'verify'
+  | 'end';
 
 // Event copy is served by /api/status so it can be changed from the admin
 // console without a redeploy. DEFAULTS is only the fallback if that fetch
@@ -43,6 +51,10 @@ type Session = {
   childCode: string | null;
   demo?: boolean;
   settings?: Settings;
+  // Set once their one invitation has been pointed at someone.
+  inviteSent?: boolean;
+  maskedPhone?: string;
+  mode?: string;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -95,6 +107,14 @@ function boxAround(code: string): Line[] {
     L(`└${'─'.repeat(inner.length)}┘`),
   ];
 }
+
+const VERIFY_PROMPT: Line[] = [
+  BLANK,
+  L('THIS INVITATION WAS ADDRESSED TO ONE HANDSET.'),
+  L('CONFIRM THE LAST FOUR DIGITS OF YOUR NUMBER.'),
+  L('IT IS NOT YOURS IF YOU CANNOT.', 'dim'),
+  BLANK,
+];
 
 // Marks a demo run so a sandbox pass is never mistaken for the real thing.
 const DEMO_BANNER: Line[] = [
@@ -190,10 +210,9 @@ function emailPromptLines(cfg: Settings): Line[] {
   ];
 }
 
-function payoffLines(s: Session, origin: string, restored = false): Line[] {
+function payoffLines(s: Session, restored = false): Line[] {
   // A restored session replays the copy captured at accept time.
   const cfg = s.settings ?? FALLBACK;
-  const shareUrl = `${origin}/?c=${s.childCode}`;
   const head: Line[] = [
     ...(s.demo ? DEMO_BANNER : []),
     ...(restored
@@ -232,24 +251,55 @@ function payoffLines(s: Session, origin: string, restored = false): Line[] {
     ...head,
     ...seat,
     L('YOU ARE NOW A LINK IN THE CHAIN.'),
-    L('YOU ARE OWED EXACTLY ONE INVITATION. IT MINTS NOW:'),
+    L('YOU ARE OWED EXACTLY ONE INVITATION.'),
     BLANK,
-    ...boxAround(s.childCode),
+    L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
+    L('WHOSE NUMBER? THE INVITATION GOES STRAIGHT TO THEIR PHONE.'),
+    L('NO SCREENSHOTS. NO FORWARDING. NO GROUP CHATS.', 'dim'),
+    ...(hasContactPicker()
+      ? [
+          BLANK,
+          {
+            spans: [
+              { t: '[PICK FROM CONTACTS]', act: 'pick-contact' },
+              { t: '   or type it below', cls: 'dim' },
+            ],
+          } as Line,
+        ]
+      : []),
+    BLANK,
+  ];
+}
+
+/** Contact Picker exists on Chrome/Android only; never on iOS Safari. */
+function hasContactPicker(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    'contacts' in navigator &&
+    typeof (navigator as { contacts?: { select?: unknown } }).contacts?.select ===
+      'function'
+  );
+}
+
+// Shown after the invitation has been dispatched.
+function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
+  return [
+    BLANK,
+    ...(mode === 'server'
+      ? [L(`TRANSMITTED TO ${masked}.`)]
+      : [
+          L(`MESSAGE READY FOR ${masked}.`),
+          L('IT SENDS FROM YOUR PHONE, NOT OURS — SO IT LANDS FROM', 'dim'),
+          L('A NUMBER THEY ALREADY KNOW. EDIT IT IF YOU WANT.', 'dim'),
+        ]),
+    BLANK,
+    L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
+    BLANK,
+    L(`THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
     {
-      spans: [
-        { t: '[COPY CODE]', act: 'copy-code' },
-        { t: '  ' },
-        { t: '[COPY SHARE LINK]', act: 'copy-link' },
-      ],
+      spans: [{ t: '    ' }, { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl }],
     },
-    L(shareUrl, 'dim'),
-    BLANK,
-    L('HAND IT TO ONE PERSON. WHEN THEY ACCEPT, THEY MINT THEIR OWN.'),
-    L('IF THEY DECLINE, IT DIES WITH THEM.'),
-    L('DO NOT POST IT PUBLICLY.', 'warn'),
-    BLANK,
-    L(`REMINDER: THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
     L(`${cfg.eventDate} // ${cfg.hood} // BYOB`),
     BLANK,
     L('SEE YOU IN THE DARK.'),
@@ -274,6 +324,9 @@ export default function Home() {
   const bootedRef = useRef(false);
   const settingsRef = useRef<Settings>(FALLBACK);
   const demoRef = useRef(false);
+  const pendingPhoneRef = useRef('');
+  const handoffRef = useRef('');
+  const last4Ref = useRef('');
 
   const origin =
     typeof window !== 'undefined' ? window.location.origin : 'https://hyperlink.nyc';
@@ -295,8 +348,25 @@ export default function Home() {
       } catch {}
       if (saved?.code) {
         sessionRef.current = saved;
-        await typeLines(payoffLines(saved, origin, true));
-        setPhase('end');
+        if (saved.inviteSent) {
+          // Already spent their invitation — replay the closing screen.
+          await typeLines([
+            ...(saved.demo ? DEMO_BANNER : []),
+            L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
+            BLANK,
+            L(`YOU ARE ALREADY IN THE CHAIN, ${saved.email}.`),
+            ...sentLines(
+              saved.maskedPhone ?? 'YOUR CONTACT',
+              saved.settings ?? FALLBACK,
+              saved.mode ?? 'handoff'
+            ),
+          ]);
+          setPhase('end');
+          return;
+        }
+        // Accepted but never named anyone — put them back on the phone prompt.
+        await typeLines(payoffLines(saved, true));
+        setPhase('phone');
         return;
       }
 
@@ -341,15 +411,30 @@ export default function Home() {
       else if (p === 'decision') await submitDecision(value);
       else if (p === 'confirmDecline') await submitConfirmDecline(value);
       else if (p === 'email') await submitEmail(value);
+      else if (p === 'phone') await submitPhone(value);
+      else if (p === 'verify') await submitVerify(value);
     } finally {
       submittingRef.current = false;
     }
   }
 
+  const normalize = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // The last-4 check travels with every code lookup and with the accept,
+  // so a forwarded link cannot be redeemed by whoever happens to hold it.
   async function submitCode(value: string) {
     print([L(`> ${value.toUpperCase()}`, 'dim')]);
-    const res = await api('/api/code', { code: value });
-    if (res?.result === 'valid') {
+    const res = await api('/api/code', { code: value, last4: last4Ref.current });
+    if (res?.result === 'needverify') {
+      codeRef.current = normalize(value);
+      await typeLines(VERIFY_PROMPT);
+      setPhase('verify');
+    } else if (res?.result === 'wrongphone') {
+      await typeLines([
+        L('THOSE DIGITS DO NOT MATCH.', 'warn'),
+        L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
+      ]);
+    } else if (res?.result === 'valid') {
       codeRef.current = res.code;
       demoRef.current = !!res.demo;
       await typeLines(
@@ -372,6 +457,41 @@ export default function Home() {
     } else {
       const msg = DENIALS[Math.min(denialsRef.current++, DENIALS.length - 1)];
       await typeLines([L(msg, 'warn'), L('ENTER ACCESS CODE')]);
+    }
+  }
+
+  async function submitVerify(value: string) {
+    const digits = value.replace(/\D/g, '');
+    print([L(`> ${digits || value}`, 'dim')]);
+    if (digits.length !== 4) {
+      await typeLines([L('FOUR DIGITS. NOTHING ELSE.', 'warn')]);
+      return;
+    }
+    last4Ref.current = digits;
+    await typeLines([L('CHECKING ...', 'dim')]);
+    const res = await api('/api/code', { code: codeRef.current, last4: digits });
+    if (res?.result === 'valid') {
+      demoRef.current = !!res.demo;
+      await typeLines(
+        revealLines(res.spotsRemaining, res.capacity, settingsRef.current, !!res.demo)
+      );
+      setPhase('decision');
+    } else if (res?.result === 'wrongphone' || res?.result === 'needverify') {
+      last4Ref.current = '';
+      await typeLines([
+        L('THOSE DIGITS DO NOT MATCH.', 'warn'),
+        L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
+      ]);
+    } else if (res?.result === 'dead') {
+      await typeLines(DEAD_LINES);
+      setPhase('code');
+    } else if (res?.result === 'full') {
+      await typeLines(FULL_LINES);
+      setPhase('end');
+    } else if (res?.result === 'ratelimited') {
+      await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
+    } else {
+      await typeLines(FAULT_LINES);
     }
   }
 
@@ -412,6 +532,83 @@ export default function Home() {
     await typeLines([L('TYPE DECLINE TO CONFIRM, OR ACCEPT TO RECONSIDER.')]);
   }
 
+  function saveSession() {
+    const s = sessionRef.current;
+    if (!s) return;
+    try {
+      // A demo run must not overwrite a real guest's saved session.
+      if (!s.demo) localStorage.setItem('hl_session', JSON.stringify(s));
+    } catch {}
+  }
+
+  // ── naming the one person you get to bring ─────────────────────
+  async function submitPhone(value: string) {
+    print([L(`> ${value}`, 'dim')]);
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 10 && !value.trim().startsWith('+')) {
+      await typeLines([
+        L('THAT IS NOT A NUMBER. TEN DIGITS, OR +COUNTRY CODE.', 'warn'),
+      ]);
+      return;
+    }
+    const s = sessionRef.current;
+    if (!s?.childCode) return;
+
+    await typeLines([L('PREPARING TRANSMISSION ...', 'dim')]);
+    const res = await api('/api/invite', {
+      code: s.childCode,
+      phone: value.trim(),
+    });
+
+    if (res?.result === 'badphone') {
+      await typeLines([
+        L(`REJECTED: ${String(res.error ?? 'bad number').toUpperCase()}`, 'warn'),
+        L('GIVE ME THE NUMBER AGAIN.'),
+      ]);
+      setPhase('phone');
+      return;
+    }
+    if (res?.result === 'error' || res?.result === 'ratelimited') {
+      await typeLines(FAULT_LINES);
+      return;
+    }
+    if (res?.result !== 'sent' && res?.result !== 'handoff' && res?.result !== 'already') {
+      await typeLines(DEAD_LINES);
+      setPhase('end');
+      return;
+    }
+
+    s.inviteSent = true;
+    s.maskedPhone = res.masked;
+    s.mode = res.mode;
+    sessionRef.current = s;
+    saveSession();
+
+    if (res.result === 'already') {
+      await typeLines([L('THAT INVITATION IS ALREADY OUT. IT STANDS.', 'warn')]);
+    }
+    if (res.fellBack) {
+      await typeLines([
+        L('OUR TRANSMITTER IS DOWN. ROUTING THROUGH YOUR HANDSET.', 'dim'),
+      ]);
+    }
+    await typeLines(sentLines(res.masked, settingsRef.current, res.mode));
+
+    // Hand the composed message to their own SMS app.
+    if (res.handoffLink) {
+      handoffRef.current = res.handoffLink;
+      print([
+        {
+          spans: [
+            { t: '>> OPEN MESSAGES AND SEND <<', href: res.handoffLink },
+            { t: '   (tap)', cls: 'dim' },
+          ],
+        },
+      ]);
+    }
+    setPhase('end');
+  }
+
   async function submitEmail(value: string) {
     const email = value.toLowerCase();
     print([L(`> ${email}`, 'dim')]);
@@ -420,7 +617,11 @@ export default function Home() {
       return;
     }
     await typeLines([L('TRANSMITTING ...', 'dim')]);
-    const res = await api('/api/accept', { code: codeRef.current, email });
+    const res = await api('/api/accept', {
+      code: codeRef.current,
+      email,
+      last4: last4Ref.current,
+    });
     if (res?.result === 'accepted') {
       const session: Session = {
         code: codeRef.current,
@@ -432,12 +633,11 @@ export default function Home() {
         settings: settingsRef.current,
       };
       sessionRef.current = session;
-      try {
-        // A demo run must not overwrite a real guest's saved session.
-        if (!session.demo) localStorage.setItem('hl_session', JSON.stringify(session));
-      } catch {}
-      await typeLines(payoffLines(session, origin));
-      setPhase('end');
+      saveSession();
+      await typeLines(payoffLines(session));
+      // The final guest gets no child code — payoffLines already closes them
+      // out, so there is nobody for them to name.
+      setPhase(session.childCode ? 'phone' : 'end');
     } else if (res?.result === 'full') {
       await typeLines([
         L('THE LAST SEAT WAS TAKEN WHILE YOU HESITATED.', 'warn'),
@@ -479,39 +679,56 @@ export default function Home() {
       submit('ACCEPT');
     } else if (act === 'decline' && phase === 'decision') {
       submit('DECLINE');
-    } else if (act === 'copy-code' || act === 'copy-link') {
-      const s = sessionRef.current;
-      if (!s?.childCode) return;
-      const text = act === 'copy-code' ? s.childCode : `${origin}/?c=${s.childCode}`;
-      try {
-        await navigator.clipboard.writeText(text);
-        print([L('COPIED TO CLIPBOARD.', 'dim')]);
-      } catch {
-        // Older in-app browsers (Instagram/Safari) — legacy path.
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          const ok = document.execCommand('copy');
-          document.body.removeChild(ta);
-          print(
-            ok
-              ? [L('COPIED TO CLIPBOARD.', 'dim')]
-              : [L('CLIPBOARD REFUSED. SELECT THE LINE ABOVE BY HAND.', 'warn')]
-          );
-        } catch {
-          print([L('CLIPBOARD REFUSED. SELECT THE LINE ABOVE BY HAND.', 'warn')]);
-        }
+    } else if (act === 'pick-contact') {
+      await pickContact();
+    }
+  }
+
+  /**
+   * Contact Picker API. Chrome on Android only — Safari and the Instagram
+   * in-app browser have no such API, which is most of this audience, so the
+   * button only appears when it actually exists and typing is the real path.
+   */
+  async function pickContact() {
+    const nav = navigator as Navigator & {
+      contacts?: {
+        select: (
+          props: string[],
+          opts?: { multiple?: boolean }
+        ) => Promise<Array<{ tel?: string[]; name?: string[] }>>;
+      };
+    };
+    if (!nav.contacts?.select) return;
+    try {
+      const picked = await nav.contacts.select(['tel', 'name'], { multiple: false });
+      const tel = picked?.[0]?.tel?.[0];
+      if (tel) {
+        setInput(tel);
+        submit(tel);
       }
+    } catch {
+      /* user dismissed the picker */
     }
   }
 
   const awaiting =
-    !busy && ['code', 'decision', 'confirmDecline', 'email'].includes(phase);
-  const prompt = phase === 'email' ? 'EMAIL > ' : '> ';
+    !busy &&
+    ['code', 'decision', 'confirmDecline', 'email', 'phone', 'verify'].includes(
+      phase
+    );
+  const prompt =
+    phase === 'email'
+      ? 'EMAIL > '
+      : phase === 'phone'
+        ? 'PHONE > '
+        : phase === 'verify'
+          ? 'LAST 4 > '
+          : '> ';
+
+  // Free-text phases must not be force-uppercased.
+  const freeText = phase === 'email' || phase === 'phone' || phase === 'verify';
+  const inputType =
+    phase === 'email' ? 'email' : phase === 'phone' || phase === 'verify' ? 'tel' : 'text';
 
   return (
     <Screen
@@ -533,21 +750,31 @@ export default function Home() {
             setInput(
               phase === 'email'
                 ? e.target.value.replace(/\s/g, '')
-                : e.target.value.toUpperCase()
+                : freeText
+                  ? e.target.value
+                  : e.target.value.toUpperCase()
             )
           }
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit(input);
           }}
-          type={phase === 'email' ? 'email' : 'text'}
-          inputMode={phase === 'email' ? 'email' : 'text'}
-          autoCapitalize={phase === 'email' ? 'none' : 'characters'}
-          autoComplete={phase === 'email' ? 'email' : 'off'}
+          type={inputType}
+          inputMode={
+            phase === 'email'
+              ? 'email'
+              : phase === 'phone' || phase === 'verify'
+                ? 'tel'
+                : 'text'
+          }
+          autoCapitalize={freeText ? 'none' : 'characters'}
+          autoComplete={
+            phase === 'email' ? 'email' : phase === 'phone' ? 'tel' : 'off'
+          }
           autoCorrect="off"
           spellCheck={false}
           enterKeyHint="go"
           autoFocus
-          aria-label={phase === 'email' ? 'email' : 'access code'}
+          aria-label={phase}
         />
       )}
     </Screen>

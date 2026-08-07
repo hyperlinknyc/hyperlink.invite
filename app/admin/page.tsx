@@ -11,6 +11,9 @@ type CodeRow = {
   depth: number;
   position: number | null;
   world: number;
+  invitee_phone: string | null;
+  passphrase: string | null;
+  sms_status: string | null;
   created_at: string;
   decided_at: string | null;
 };
@@ -148,6 +151,20 @@ export default function Admin() {
     refresh();
   }
 
+  async function unbind(code: string) {
+    if (
+      !window.confirm(
+        `Unbind ${code} from its number? Use this only if the number was ` +
+          `typed wrong — the invite becomes openable by anyone with the link ` +
+          `until it is aimed again.`
+      )
+    )
+      return;
+    const res = await post('/api/admin/unbind', { code });
+    setMsg(res.cleared ? `${code} UNBOUND — can be re-aimed.` : `${code} NOT UNBINDABLE`);
+    refresh();
+  }
+
   async function purgeDemo() {
     if (!window.confirm('Wipe ALL demo codes and reset the demo counter?')) return;
     const res = await post('/api/admin/demo-purge', {});
@@ -201,12 +218,28 @@ export default function Admin() {
             {pos}
             {node.email ? ` ${node.email}` : ''}
           </span>
+          {node.invitee_phone && (
+            <span className="dim">
+              {' → '}
+              {node.invitee_phone}
+              {node.sms_status ? ` [${node.sms_status.toUpperCase()}]` : ''}
+              {node.passphrase ? ` "${node.passphrase}"` : ''}
+            </span>
+          )}
           {node.status === 'unused' && (
             <>
               {' '}
               <span className="act" onClick={() => kill(node.code)}>
                 [KILL]
               </span>
+              {node.invitee_phone && (
+                <>
+                  {' '}
+                  <span className="act" onClick={() => unbind(node.code)}>
+                    [UNBIND]
+                  </span>
+                </>
+              )}
             </>
           )}
         </div>

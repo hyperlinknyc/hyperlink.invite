@@ -54,15 +54,47 @@ export async function killAllUnused(world: World = WORLD_LIVE): Promise<number> 
   return rows.length;
 }
 
-export type CodeInfo = { status: CodeStatus; world: World };
+export type CodeInfo = {
+  status: CodeStatus;
+  world: World;
+  inviteePhone: string | null;
+};
 
 export async function codeInfo(code: string): Promise<CodeInfo | null> {
-  const rows = await q(`SELECT status, world FROM codes WHERE code = $1`, [code]);
+  const rows = await q(
+    `SELECT status, world, invitee_phone FROM codes WHERE code = $1`,
+    [code]
+  );
   if (rows.length === 0) return null;
   return {
     status: rows[0].status as CodeStatus,
     world: Number(rows[0].world) as World,
+    inviteePhone: (rows[0].invitee_phone as string) ?? null,
   };
+}
+
+/**
+ * A code that was dispatched to a specific number can only be opened by
+ * someone who knows that number's last four digits. This is what stops a
+ * forwarded link from admitting the wrong person: the invitation is bound
+ * to whoever it was addressed to, not to whoever holds the URL.
+ * Seed codes carry no phone and skip the check.
+ */
+export function phoneMatches(inviteePhone: string | null, last4: string): boolean {
+  if (!inviteePhone) return true;
+  const digits = last4.replace(/\D/g, '');
+  return digits.length === 4 && inviteePhone.slice(-4) === digits;
+}
+
+/** Admin escape hatch: unbind a mistyped number so the code can be re-aimed. */
+export async function clearInviteClaim(code: string): Promise<boolean> {
+  const rows = await q(
+    `UPDATE codes SET invitee_phone = NULL, passphrase = NULL,
+            sms_status = NULL, sms_error = NULL, sms_at = NULL
+     WHERE code = $1 AND status = 'unused' RETURNING id`,
+    [code]
+  );
+  return rows.length > 0;
 }
 
 export type AcceptResult =
@@ -188,6 +220,62 @@ export async function mintSeedCode(world: World = WORLD_LIVE): Promise<string> {
   throw new Error('could not generate a unique seed code');
 }
 
+export type ClaimResult =
+  | { ok: true; alreadySent: false }
+  // On a re-submit we return what is actually on file, never the values just
+  // typed — otherwise the screen would imply we re-sent to a new number.
+  | { ok: true; alreadySent: true; phone: string; passphrase: string }
+  | { ok: false; reason: 'notfound' | 'taken' };
+
+/**
+ * Attach an invitee's phone + passphrase to a freshly minted code.
+ * Conditional on the code still being unused and unclaimed, so a
+ * double-submit or a refresh cannot retarget an invitation that has
+ * already gone out to someone else.
+ */
+export async function claimInvite(
+  code: string,
+  phoneE164: string,
+  passphrase: string
+): Promise<ClaimResult> {
+  const rows = await q(
+    `UPDATE codes
+     SET invitee_phone = $2, passphrase = $3, sms_status = 'pending'
+     WHERE code = $1 AND status = 'unused' AND invitee_phone IS NULL
+     RETURNING id`,
+    [code, phoneE164, passphrase]
+  );
+  if (rows.length > 0) return { ok: true, alreadySent: false };
+
+  const existing = await q(
+    `SELECT invitee_phone, passphrase FROM codes WHERE code = $1`,
+    [code]
+  );
+  if (existing.length === 0) return { ok: false, reason: 'notfound' };
+  // Already pointed at someone — surface that rather than silently retargeting.
+  if (existing[0].invitee_phone) {
+    return {
+      ok: true,
+      alreadySent: true,
+      phone: String(existing[0].invitee_phone),
+      passphrase: String(existing[0].passphrase ?? ''),
+    };
+  }
+  return { ok: false, reason: 'taken' };
+}
+
+export async function markSms(
+  code: string,
+  status: 'sent' | 'failed' | 'handoff',
+  error?: string
+): Promise<void> {
+  await q(
+    `UPDATE codes SET sms_status = $2, sms_error = $3, sms_at = now()
+     WHERE code = $1`,
+    [code, status, error ?? null]
+  );
+}
+
 /** Admin: kill one specific unused code. */
 export async function killCode(code: string): Promise<boolean> {
   const rows = await q(
@@ -214,12 +302,16 @@ export type CodeRow = {
   depth: number;
   position: number | null;
   world: World;
+  invitee_phone: string | null;
+  passphrase: string | null;
+  sms_status: string | null;
   created_at: string;
   decided_at: string | null;
 };
 
 export async function allCodes(world?: World): Promise<CodeRow[]> {
   const sql = `SELECT id, code, status, issuer_id, email, depth, position, world,
+                      invitee_phone, passphrase, sms_status,
                       created_at::text, decided_at::text
                FROM codes ${world ? 'WHERE world = $1' : ''} ORDER BY id`;
   return (await q(sql, world ? [world] : [])) as unknown as CodeRow[];
