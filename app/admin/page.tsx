@@ -61,6 +61,22 @@ const GLYPH: Record<CodeRow['status'], string> = {
   dead: '†',
 };
 
+/**
+ * 'dead' covers three different events: a guest you removed, a code you
+ * killed, and codes retired automatically when the room sealed. Only the
+ * first has a name attached, so the tree can tell them apart and say which
+ * one happened rather than showing "DEAD" next to a person's name.
+ */
+function statusLabel(c: CodeRow): string {
+  if (c.status !== 'dead') return c.status.toUpperCase();
+  return c.guest_name ? 'REMOVED' : 'KILLED';
+}
+
+function statusGlyph(c: CodeRow): string {
+  if (c.status === 'dead' && c.guest_name) return '⊘';
+  return GLYPH[c.status];
+}
+
 const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
   { key: 'edition', label: 'EDITION   ', hint: 'e.g. EDITION 004' },
   { key: 'eventDate', label: 'DATE      ', hint: 'e.g. SAT 11.15' },
@@ -327,11 +343,11 @@ export default function Admin() {
           )}
           <span>
             {' '}
-            {GLYPH[node.status]} {node.code}
+            {statusGlyph(node)} {node.code}
           </span>
           <span className={node.status === 'accepted' ? '' : 'dim'}>
             {' '}
-            {node.status.toUpperCase()}
+            {statusLabel(node)}
             {pos}
             {node.guest_name ? ` ${node.guest_name}` : ''}
           </span>
@@ -547,6 +563,10 @@ export default function Admin() {
             <span className="act" onClick={() => setFolded(new Set())}>
               [EXPAND ALL]
             </span>
+          </div>
+          <div className="line dim">
+            · unused (still works) · ■ accepted · ✗ declined by them ·
+            ⊘ removed by you · † killed / retired when full
           </div>
           {state && state.codes.length > 0 ? (
             renderTree(state.codes)
