@@ -110,8 +110,9 @@ function boxAround(code: string): Line[] {
 
 const VERIFY_PROMPT: Line[] = [
   BLANK,
-  L('THIS INVITATION WAS ADDRESSED TO ONE HANDSET.'),
-  L('CONFIRM THE LAST FOUR DIGITS OF YOUR NUMBER.'),
+  L('THIS INVITATION WAS SENT TO ONE PHONE.'),
+  L('ENTER THE LAST 4 DIGITS OF YOUR PHONE NUMBER'),
+  L('TO PROVE IT REACHED THE RIGHT PERSON.'),
   L('IT IS NOT YOURS IF YOU CANNOT.', 'dim'),
   BLANK,
 ];
@@ -462,7 +463,7 @@ export default function Home() {
       setPhase('verify');
     } else if (res?.result === 'wrongphone') {
       await typeLines([
-        L('THOSE DIGITS DO NOT MATCH.', 'warn'),
+        L('THAT IS NOT THE PHONE THIS WAS SENT TO.', 'warn'),
         L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
       ]);
     } else if (res?.result === 'valid') {
@@ -495,7 +496,9 @@ export default function Home() {
     const digits = value.replace(/\D/g, '');
     print([L(`> ${digits || value}`, 'dim')]);
     if (digits.length !== 4) {
-      await typeLines([L('FOUR DIGITS. NOTHING ELSE.', 'warn')]);
+      await typeLines([
+        L('FOUR DIGITS — THE LAST 4 OF YOUR PHONE NUMBER.', 'warn'),
+      ]);
       return;
     }
     last4Ref.current = digits;
@@ -510,7 +513,7 @@ export default function Home() {
     } else if (res?.result === 'wrongphone' || res?.result === 'needverify') {
       last4Ref.current = '';
       await typeLines([
-        L('THOSE DIGITS DO NOT MATCH.', 'warn'),
+        L('THAT IS NOT THE PHONE THIS WAS SENT TO.', 'warn'),
         L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
       ]);
     } else if (res?.result === 'dead') {
@@ -783,7 +786,7 @@ export default function Home() {
       : phase === 'phone'
         ? 'PHONE > '
         : phase === 'verify'
-          ? 'LAST 4 > '
+          ? 'LAST 4 OF PHONE > '
           : '> ';
 
   // Free-text phases must not be force-uppercased.
