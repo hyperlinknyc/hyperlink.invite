@@ -46,6 +46,8 @@ export async function POST(req: Request) {
   return NextResponse.json({
     result: 'accepted',
     position: res.position,
+    // Occupancy at the moment they got in; the seat number guests see.
+    accepted: res.accepted,
     capacity: res.capacity,
     spotsRemaining: res.spotsRemaining,
     childCode: res.childCode,

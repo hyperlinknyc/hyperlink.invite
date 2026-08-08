@@ -49,6 +49,8 @@ type Session = {
   code: string;
   name: string;
   position: number;
+  /** How full the room was when they got in — what the guest is shown. */
+  seat?: number;
   capacity: number;
   childCode: string | null;
   demo?: boolean;
@@ -266,10 +268,14 @@ function payoffLines(s: Session, restored = false): Line[] {
       : [L(`${s.name} — LOGGED.`)]),
   ];
 
+  // Occupancy, not the chain position. `position` never reuses a number, so
+  // once anyone is removed it runs ahead of how full the room actually is —
+  // showing it would read as "GUEST 45 OF 40".
+  const taken = s.seat ?? s.position;
   const seat: Line[] = [
     L(
-      `GUEST ${String(s.position).padStart(2, '0')} OF ${s.capacity}. ` +
-        `${Math.max(0, s.capacity - s.position)} SEATS REMAIN BEHIND YOU.`
+      `GUEST ${String(taken).padStart(2, '0')} OF ${s.capacity}. ` +
+        `${Math.max(0, s.capacity - taken)} SEATS REMAIN BEHIND YOU.`
     ),
     BLANK,
   ];
@@ -758,6 +764,7 @@ export default function Home() {
         code: codeRef.current,
         name,
         position: res.position,
+        seat: res.accepted ?? res.position,
         capacity: res.capacity,
         childCode: res.childCode,
         demo: !!res.demo,

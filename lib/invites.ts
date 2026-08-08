@@ -441,7 +441,13 @@ export async function revokeGuest(code: string): Promise<RevokeResult> {
 /** Admin: wipe the demo world back to zero. Never touches the live party. */
 export async function purgeDemo(): Promise<number> {
   const rows = await q(`DELETE FROM codes WHERE world = $1 RETURNING id`, [WORLD_DEMO]);
-  await q(`UPDATE event_state SET accepted_count = 0 WHERE id = $1`, [WORLD_DEMO]);
+  // next_position resets here, unlike on a removal. Nothing survives a purge,
+  // so no position can collide — and leaving it climbing made the next demo
+  // guest read as "GUEST 11" in a five-seat world.
+  await q(
+    `UPDATE event_state SET accepted_count = 0, next_position = 0 WHERE id = $1`,
+    [WORLD_DEMO]
+  );
   return rows.length;
 }
 
