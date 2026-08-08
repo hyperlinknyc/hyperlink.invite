@@ -95,6 +95,8 @@ export default function Admin() {
   const [msg, setMsg] = useState('');
   const [draft, setDraft] = useState<Settings | null>(null);
   const [showDemo, setShowDemo] = useState(false);
+  // Roots folded shut, by code. Chains get long once the party fills.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
   const [handoff, setHandoff] = useState<{
     code: string;
     link: string;
@@ -285,6 +287,22 @@ export default function Admin() {
       if (!byIssuer.has(k)) byIssuer.set(k, []);
       byIssuer.get(k)!.push(c);
     }
+
+    // Everything hanging off a root, so a folded chain can still report
+    // how many people it brought in.
+    const branchStats = (root: CodeRow) => {
+      let total = 0;
+      let accepted = 0;
+      const stack = [...(byIssuer.get(root.id) ?? [])];
+      while (stack.length) {
+        const n = stack.pop()!;
+        total++;
+        if (n.status === 'accepted') accepted++;
+        stack.push(...(byIssuer.get(n.id) ?? []));
+      }
+      return { total, accepted };
+    };
+
     const out: React.ReactNode[] = [];
     const walk = (node: CodeRow, prefix: string, isLast: boolean, isRoot: boolean) => {
       const branch = isRoot ? '' : prefix + (isLast ? '└─ ' : '├─ ');
@@ -293,7 +311,22 @@ export default function Admin() {
       out.push(
         <div className="line" key={node.id}>
           <span className="dim">{branch}</span>
+          {isRoot && (byIssuer.get(node.id)?.length ?? 0) > 0 ? (
+            <span
+              className="act"
+              onClick={() => {
+                const next = new Set(folded);
+                next.has(node.code) ? next.delete(node.code) : next.add(node.code);
+                setFolded(next);
+              }}
+            >
+              {folded.has(node.code) ? '[+]' : '[-]'}
+            </span>
+          ) : (
+            isRoot && <span className="dim">{'   '}</span>
+          )}
           <span>
+            {' '}
             {GLYPH[node.status]} {node.code}
           </span>
           <span className={node.status === 'accepted' ? '' : 'dim'}>
@@ -342,6 +375,16 @@ export default function Admin() {
         </div>
       );
       const kids = byIssuer.get(node.id) ?? [];
+      if (isRoot && folded.has(node.code) && kids.length > 0) {
+        const { total, accepted } = branchStats(node);
+        out.push(
+          <div className="line dim" key={`${node.id}-folded`}>
+            {'   └─ '}
+            {total} in this chain · {accepted} accepted
+          </div>
+        );
+        return;
+      }
       kids.forEach((kid, i) =>
         walk(
           kid,
@@ -485,7 +528,26 @@ export default function Admin() {
 
         {/* ── INVITE CHAIN ───────────────────────────────────────── */}
         <div className="admin-block">
-          <div className="line dim">── INVITE CHAIN ─────────────────────</div>
+          <div className="line dim">
+            ── INVITE CHAIN ─────────────────────{' '}
+            <span
+              className="act"
+              onClick={() =>
+                setFolded(
+                  new Set(
+                    (state?.codes ?? [])
+                      .filter((c) => c.issuer_id === null)
+                      .map((c) => c.code)
+                  )
+                )
+              }
+            >
+              [COLLAPSE ALL]
+            </span>{' '}
+            <span className="act" onClick={() => setFolded(new Set())}>
+              [EXPAND ALL]
+            </span>
+          </div>
           {state && state.codes.length > 0 ? (
             renderTree(state.codes)
           ) : (
