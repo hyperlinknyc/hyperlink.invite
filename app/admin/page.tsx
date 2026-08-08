@@ -131,6 +131,7 @@ export default function Admin() {
     code: string;
     link: string;
     masked: string;
+    message: string;
   } | null>(null);
   const handoffRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -234,7 +235,12 @@ export default function Admin() {
       setMsg(`FAILED: ${res.result}`);
       return;
     }
-    setHandoff({ code, link: res.handoffLink ?? '', masked: res.masked });
+    setHandoff({
+      code,
+      link: res.handoffLink ?? '',
+      masked: res.masked,
+      message: res.message ?? '',
+    });
     // The banner renders above the tree; without this it appears off-screen
     // and reads as nothing having happened.
     setTimeout(() => handoffRef.current?.scrollIntoView({ block: 'center' }), 50);
@@ -244,6 +250,28 @@ export default function Admin() {
         : `${code} BOUND TO ${res.masked}. TAP THE LINK BELOW TO SEND IT.`
     );
     refresh();
+  }
+
+  /**
+   * Send an aimed code. Uses the OS share sheet first — the same path guests
+   * use, and the one confirmed to open Messages and return to the page. The
+   * sms: link stays as a fallback for browsers without navigator.share.
+   */
+  async function sendAimed() {
+    if (!handoff) return;
+    const nav = navigator as Navigator & {
+      share?: (d: { text?: string }) => Promise<void>;
+    };
+    if (typeof nav.share === 'function' && handoff.message) {
+      try {
+        await nav.share({ text: handoff.message });
+        setMsg(`SENT ${handoff.code}.`);
+      } catch {
+        setMsg('NOT SENT — SHEET DISMISSED. TAP AGAIN WHEN READY.');
+      }
+      return;
+    }
+    if (handoff.link) window.location.href = handoff.link;
   }
 
   async function unbind(code: string) {
@@ -506,15 +534,17 @@ export default function Admin() {
         {handoff?.link && (
           <div className="admin-block" ref={handoffRef}>
             <div className="line">
-              <a href={handoff.link}>&gt;&gt; SEND {handoff.code} TO {handoff.masked} &lt;&lt;</a>{' '}
+              <span className="act cta" onClick={sendAimed}>
+                &gt;&gt; SEND {handoff.code} TO {handoff.masked} &lt;&lt;
+              </span>{' '}
               <span className="act" onClick={() => setHandoff(null)}>
                 [DISMISS]
               </span>
             </div>
             <div className="line dim">
-              This opens Messages — on a phone only. Nothing will happen on a
-              computer. Open /admin from your phone, or use [COPY LINK] and
-              send it however you like.
+              Tap that to pick them in Messages. Aiming only prepares the text —
+              nothing is sent until you do. On a computer nothing will open;
+              use [COPY LINK] instead.
             </div>
           </div>
         )}
