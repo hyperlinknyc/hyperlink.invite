@@ -77,6 +77,17 @@ function statusGlyph(c: CodeRow): string {
   return GLYPH[c.status];
 }
 
+/**
+ * sms_status in plain words. 'handoff' means the message is composed and
+ * waiting on a phone to actually send it — the site never sends it for you.
+ */
+const SMS_LABEL: Record<string, string> = {
+  handoff: 'READY TO SEND',
+  sent: 'TEXTED',
+  failed: 'SEND FAILED',
+  pending: 'NOT SENT',
+};
+
 const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
   { key: 'edition', label: 'EDITION   ', hint: 'e.g. EDITION 004' },
   { key: 'eventDate', label: 'DATE      ', hint: 'e.g. SAT 11.15' },
@@ -231,9 +242,10 @@ export default function Admin() {
   async function unbind(code: string) {
     if (
       !window.confirm(
-        `Unbind ${code} from its number? Use this only if the number was ` +
-          `typed wrong — the invite becomes openable by anyone with the link ` +
-          `until it is aimed again.`
+        `Clear the phone number from ${code}?\n\n` +
+          `Use this if you typed the wrong number. Until you aim it at a new ` +
+          `one, anybody holding the link can open it — the last-4 check is ` +
+          `what normally keeps it to one person.`
       )
     )
       return;
@@ -355,7 +367,9 @@ export default function Admin() {
             <span className="dim">
               {' → '}
               {node.invitee_phone}
-              {node.sms_status ? ` [${node.sms_status.toUpperCase()}]` : ''}
+              {node.sms_status
+                ? ` [${SMS_LABEL[node.sms_status] ?? node.sms_status.toUpperCase()}]`
+                : ''}
               {node.passphrase ? ` "${node.passphrase}"` : ''}
             </span>
           )}
@@ -382,7 +396,7 @@ export default function Admin() {
                 <>
                   {' '}
                   <span className="act" onClick={() => unbind(node.code)}>
-                    [UNBIND]
+                    [CLEAR NUMBER]
                   </span>
                 </>
               )}
@@ -488,8 +502,9 @@ export default function Admin() {
               </span>
             </div>
             <div className="line dim">
-              Opens Messages on a phone. On desktop, open /admin from your
-              phone instead — or just [COPY LINK] and send it however you like.
+              This opens Messages — on a phone only. Nothing will happen on a
+              computer. Open /admin from your phone, or use [COPY LINK] and
+              send it however you like.
             </div>
           </div>
         )}
