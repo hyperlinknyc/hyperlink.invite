@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BLANK,
   L,
+  LOGO,
   Line,
   Screen,
   useTypewriter,
@@ -200,6 +201,9 @@ const DECLINED_LINES: Line[] = [
   L('NONE OF THIS WAS REAL.'),
   BLANK,
   L('// CARRIER LOST', 'dim'),
+  BLANK,
+  LOGO,
+  BLANK,
 ];
 
 /**
@@ -356,6 +360,9 @@ const SIGN_OFF: Line[] = [
   BLANK,
   L('SEE YOU IN THE DARK.'),
   L('// EVERY LINK LEADS TO ANOTHER', 'dim'),
+  BLANK,
+  LOGO,
+  BLANK,
 ];
 
 export default function Home() {

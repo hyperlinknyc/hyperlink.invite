@@ -107,9 +107,9 @@ const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
 const inputStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  borderBottom: '1px solid var(--green-faint)',
+  borderBottom: '1px solid var(--faint)',
   outline: 'none',
-  color: 'var(--green)',
+  color: 'var(--text)',
   font: 'inherit',
   textShadow: 'inherit',
   minWidth: 0,

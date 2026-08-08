@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Logo } from './Logo';
 
 // One visual line of terminal output, built from spans so parts of a line
 // can be links or tappable [ACTIONS].
 export type Span = { t: string; href?: string; act?: string; cls?: string };
-export type Line = { spans: Span[]; cls?: string };
+/** `logo: true` renders the mark instead of text — it has no characters, so
+ *  it appears at once and takes the paragraph beat that follows a blank. */
+export type Line = { spans: Span[]; cls?: string; logo?: boolean };
 
 export const L = (t: string, cls?: string): Line => ({ spans: [{ t }], cls });
 export const BLANK: Line = { spans: [{ t: '' }] };
+export const LOGO: Line = { spans: [{ t: '' }], logo: true };
 
 export function useTypewriter() {
   const [done, setDone] = useState<Line[]>([]);
@@ -20,6 +24,17 @@ export function useTypewriter() {
     new Promise<void>((r) => setTimeout(r, ms));
 
   /** Append lines with a typewriter reveal. Resolves when finished. */
+  /**
+   * Pacing. Characters land quickly — the reveal should feel like a machine
+   * printing, not like waiting on someone to type. The rhythm comes instead
+   * from a real beat at each blank line, which gives the eye somewhere to
+   * rest and lets a paragraph be read before the next one starts.
+   */
+  const CHAR_MS = 5; // base per character
+  const CHAR_JITTER_MS = 7; // keeps it from sounding mechanical
+  const LINE_PAUSE_MS = 22; // between lines inside a paragraph
+  const PARA_PAUSE_MS = 480; // at a blank line: one paragraph, one breath
+
   const typeLines = useCallback(async (lines: Line[]) => {
     setBusy(true);
     skipRef.current = false;
@@ -29,12 +44,15 @@ export function useTypewriter() {
         for (let n = 1; n <= total; n++) {
           if (skipRef.current) break;
           setCurrent({ line, n });
-          await sleep(11 + Math.random() * 16);
+          await sleep(CHAR_MS + Math.random() * CHAR_JITTER_MS);
         }
       }
       setCurrent(null);
       setDone((d) => [...d, line]);
-      if (!skipRef.current) await sleep(45);
+      if (!skipRef.current) {
+        // A blank line is a paragraph break; hold there, not on every line.
+        await sleep(total === 0 ? PARA_PAUSE_MS : LINE_PAUSE_MS);
+      }
     }
     setBusy(false);
   }, []);
@@ -158,9 +176,9 @@ export function Screen({
   return (
     <div className="crt" onClick={onTap}>
       <div className="log" ref={logRef}>
-        {done.map((line, i) => (
-          <LineView key={i} line={line} onAct={onAct} />
-        ))}
+        {done.map((line, i) =>
+          line.logo ? <Logo key={i} /> : <LineView key={i} line={line} onAct={onAct} />
+        )}
         {current && <LineView line={current.line} upto={current.n} cursor />}
         {inputLine && (
           <div className="line">

@@ -1,10 +1,21 @@
 :root {
-  --bg: #030904;
-  --green: #33ff66;
-  --green-dim: #1d9e44;
-  --green-faint: #10662c;
-  --amber: #ffb000;
-  --glow: 0 0 5px rgba(51, 255, 102, 0.55), 0 0 24px rgba(51, 255, 102, 0.12);
+  /* Reads like a terminal you actually work in, not a film prop. Body text is
+     off-white — pure #fff on black glares on an OLED phone — and carries no
+     glow, which is what made the old palette feel like a Matrix screensaver.
+     Colour is reserved for meaning: green confirms, amber demands attention. */
+  --bg: #08090b;
+  --text: #e6e6e3;
+  --dim: #82827e;
+  --faint: #3a3a38;
+  /* The brand green, taken from the chain-link mark. Used for links and the
+     one action worth tapping — never for body text, which is what made the
+     old palette read as a screensaver. */
+  --green: #3ee63e;
+  --green-deep: #1f7a1f;
+  /* Amber is danger only: a burned code, a missed follow. Nothing else. */
+  --amber: #ffb340;
+  /* Only the cursor and the one call-to-action are allowed to glow. */
+  --glow: 0 0 6px rgba(230, 230, 227, 0.45);
 }
 
 * {
@@ -20,27 +31,28 @@ body {
 }
 
 body {
-  color: var(--green);
+  color: var(--text);
   font-family: ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Mono',
     'Roboto Mono', monospace;
   font-size: clamp(13px, 3.6vw, 16px);
   line-height: 1.5;
-  text-shadow: var(--glow);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
 
 ::selection {
-  background: var(--green);
+  background: var(--text);
   color: var(--bg);
   text-shadow: none;
 }
 
+/* Inline links stay body-coloured. Green is spent only on the mark and the
+   one action worth tapping, so there is rarely more than one on screen. */
 a {
-  color: var(--green);
+  color: var(--text);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: var(--green-dim);
+  text-decoration-color: var(--faint);
 }
 
 /* ── screen chrome ─────────────────────────────────────────────── */
@@ -70,7 +82,7 @@ a {
     to bottom,
     rgba(0, 0, 0, 0) 0px,
     rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.22) 3px,
+    rgba(0, 0, 0, 0.13) 3px,
     rgba(0, 0, 0, 0) 4px
   );
 }
@@ -84,7 +96,7 @@ a {
   z-index: 4;
   background: radial-gradient(
     ellipse at center,
-    rgba(51, 255, 102, 0.03) 0%,
+    rgba(255, 255, 255, 0.018) 0%,
     rgba(0, 0, 0, 0) 55%,
     rgba(0, 0, 0, 0.5) 100%
   );
@@ -126,21 +138,24 @@ a {
 }
 
 .dim {
-  color: var(--green-dim);
-  text-shadow: 0 0 4px rgba(51, 255, 102, 0.25);
+  color: var(--dim);
 }
 
 .warn {
   color: var(--amber);
-  text-shadow: 0 0 5px rgba(255, 176, 0, 0.5);
 }
 
-/* The one action we actually want tapped on a screen full of green text. */
+/* Green is reserved for a confirmed state — nothing decorative. */
+.ok {
+  color: var(--green);
+}
+
+/* The one action we want tapped. The only glow left on the page. */
 .cta,
 a.cta {
-  color: var(--amber);
-  text-decoration-color: var(--amber);
-  text-shadow: 0 0 7px rgba(255, 176, 0, 0.75), 0 0 22px rgba(255, 176, 0, 0.3);
+  color: var(--green);
+  text-decoration-color: var(--green);
+  text-shadow: 0 0 9px rgba(62, 230, 62, 0.55);
   animation: cta-pulse 1.9s ease-in-out infinite;
 }
 
@@ -159,7 +174,7 @@ a.cta {
   height: 1.15em;
   margin-left: 1px;
   vertical-align: text-bottom;
-  background: var(--green);
+  background: var(--text);
   box-shadow: var(--glow);
   animation: blink 1.06s steps(1) infinite;
 }
@@ -176,7 +191,7 @@ a.cta {
 }
 .act:hover,
 .act:active {
-  background: var(--green);
+  background: var(--text);
   color: var(--bg);
   text-shadow: none;
 }
@@ -194,6 +209,34 @@ a.cta {
   outline: none;
   color: transparent;
   caret-color: transparent;
+}
+
+/* ── the mark ──────────────────────────────────────────────────── */
+
+.logo-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.4em 0 0.2em;
+}
+
+/* The one place a real glow belongs: it is a sign, not text. */
+.logo {
+  width: min(46vw, 190px);
+  height: auto;
+  color: var(--green);
+  filter: drop-shadow(0 0 6px rgba(62, 230, 62, 0.75))
+    drop-shadow(0 0 18px rgba(62, 230, 62, 0.35))
+    drop-shadow(0 0 40px rgba(62, 230, 62, 0.18));
+  animation: logo-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes logo-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.82; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo { animation: none; }
 }
 
 /* admin table-ish rows reuse .line; keep everything text */
