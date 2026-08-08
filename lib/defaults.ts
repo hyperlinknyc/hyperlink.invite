@@ -9,7 +9,7 @@ export const WORLD_DEMO = 2;
 
 export const DEFAULTS = {
   edition: 'EDITION 003',
-  eventDate: 'FRI 08.22',
+  eventDate: 'SAT 08.22',
   eventTime: '21:00 — 00:00',
   hood: 'EAST WILLIAMSBURG, BROOKLYN',
   igHandle: '@hyperlink.nyc',
