@@ -129,6 +129,7 @@ export default function Admin() {
     link: string;
     masked: string;
   } | null>(null);
+  const handoffRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dirtyRef = useRef(false);
 
@@ -231,6 +232,9 @@ export default function Admin() {
       return;
     }
     setHandoff({ code, link: res.handoffLink ?? '', masked: res.masked });
+    // The banner renders above the tree; without this it appears off-screen
+    // and reads as nothing having happened.
+    setTimeout(() => handoffRef.current?.scrollIntoView({ block: 'center' }), 50);
     setMsg(
       res.result === 'sent'
         ? `TEXTED ${res.masked}.`
@@ -494,7 +498,7 @@ export default function Admin() {
         </div>
         {msg && <div className="line warn">{msg}</div>}
         {handoff?.link && (
-          <div className="admin-block">
+          <div className="admin-block" ref={handoffRef}>
             <div className="line">
               <a href={handoff.link}>&gt;&gt; SEND {handoff.code} TO {handoff.masked} &lt;&lt;</a>{' '}
               <span className="act" onClick={() => setHandoff(null)}>

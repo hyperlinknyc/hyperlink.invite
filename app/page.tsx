@@ -205,7 +205,7 @@ function namePromptLines(cfg: Settings): Line[] {
     {
       spans: [
         { t: '    ' },
-        { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl },
+        { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' },
       ],
     },
     BLANK,
@@ -249,7 +249,7 @@ function payoffLines(s: Session, restored = false): Line[] {
       ...(cfg.hasCalendar
       ? [
               {
-                spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical' }],
+                spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical', cls: 'cta' }],
               } as Line,
           ]
         : []),
@@ -310,13 +310,13 @@ function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
     BLANK,
     L(`THE STREET DROPS VIA ${cfg.igHandle}. BE FOLLOWING BY THEN.`),
     {
-      spans: [{ t: '    ' }, { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl }],
+      spans: [{ t: '    ' }, { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
     },
     L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
     ...(cfg.hasCalendar
       ? [
           {
-            spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical' }],
+            spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical', cls: 'cta' }],
           } as Line,
         ]
       : []),
@@ -622,7 +622,7 @@ export default function Home() {
       print([
         {
           spans: [
-            { t: '>> OPEN MESSAGES AND SEND <<', href: res.handoffLink },
+            { t: '>> OPEN MESSAGES AND SEND <<', href: res.handoffLink, cls: 'cta' },
             { t: '   (tap)', cls: 'dim' },
           ],
         },
@@ -786,6 +786,7 @@ export default function Home() {
       current={current}
       inputLine={awaiting ? { prompt, value: input } : null}
       onAct={onAct}
+      onSubmit={awaiting ? () => submit(input) : undefined}
       onTap={() => {
         skip();
         inputRef.current?.focus();

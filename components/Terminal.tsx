@@ -116,6 +116,7 @@ export function Screen({
   inputLine,
   onAct,
   onTap,
+  onSubmit,
   children,
 }: {
   done: Line[];
@@ -124,6 +125,9 @@ export function Screen({
   inputLine: { prompt: string; value: string } | null;
   onAct?: (act: string) => void;
   onTap?: () => void;
+  /** Tapped confirm. iOS numeric keypads have no return key, so a visible
+   *  control is the only way to submit a phone number or the last-4 code. */
+  onSubmit?: () => void;
   children?: React.ReactNode;
 }) {
   const logRef = useRef<HTMLDivElement>(null);
@@ -131,6 +135,25 @@ export function Screen({
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   });
+
+  // Track the visual viewport so the terminal shrinks above the on-screen
+  // keyboard instead of hiding the prompt behind it.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => {
+      document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+      const el = logRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    sync();
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    return () => {
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+    };
+  }, []);
 
   return (
     <div className="crt" onClick={onTap}>
@@ -144,6 +167,22 @@ export function Screen({
             <span>{inputLine.prompt}</span>
             <span>{inputLine.value}</span>
             <span className="cursor" />
+            {onSubmit && (
+              <span
+                className="act"
+                role="button"
+                tabIndex={0}
+                // pointerdown + preventDefault keeps focus on the hidden input,
+                // so the keyboard does not flap shut on every tap.
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSubmit();
+                }}
+              >
+                {'  [ENTER]'}
+              </span>
+            )}
           </div>
         )}
         {children}
