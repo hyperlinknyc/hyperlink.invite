@@ -25,11 +25,16 @@ export async function GET(req: Request) {
     dead: rows.filter((c) => c.status === 'dead').length,
   });
 
-  // Emails are live-world only — demo runs never pollute the guest list.
-  const emails = liveCodes
-    .filter((c) => c.status === 'accepted' && c.email)
+  // The door list: live world only, in the order people accepted. Each
+  // guest's number is the one their invitation was texted to.
+  const guests = liveCodes
+    .filter((c) => c.status === 'accepted')
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map((c) => c.email as string);
+    .map((c) => ({
+      position: c.position,
+      name: c.guest_name ?? '(unnamed)',
+      phone: c.invitee_phone ?? '',
+    }));
 
   return NextResponse.json({
     ok: true,
@@ -48,6 +53,6 @@ export async function GET(req: Request) {
     settings,
     codes: liveCodes,
     demoCodes,
-    emails,
+    guests,
   });
 }

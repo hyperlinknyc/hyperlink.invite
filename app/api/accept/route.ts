@@ -6,8 +6,6 @@ import { WORLD_DEMO } from '@/lib/defaults';
 
 export const dynamic = 'force-dynamic';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
 export async function POST(req: Request) {
   if (await overLimit(clientIp(req))) {
     return NextResponse.json({ result: 'ratelimited' }, { status: 429 });
@@ -15,11 +13,11 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const code = normalizeCode(String(body.code ?? ''));
-  const email = String(body.email ?? '').trim().toLowerCase();
+  const name = String(body.name ?? '').trim().replace(/\s+/g, ' ');
 
   if (!isPlausibleCode(code)) return NextResponse.json({ result: 'invalid' });
-  if (!EMAIL_RE.test(email) || email.length > 254) {
-    return NextResponse.json({ result: 'bademail' });
+  if (name.length < 2 || name.length > 60) {
+    return NextResponse.json({ result: 'badname' });
   }
 
   // Re-check the phone binding here, not just in /api/code — this is the
@@ -29,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: 'wrongphone' });
   }
 
-  const res = await acceptInvite(code, email);
+  const res = await acceptInvite(code, name);
   if (!res.ok) return NextResponse.json({ result: res.reason });
 
   return NextResponse.json({

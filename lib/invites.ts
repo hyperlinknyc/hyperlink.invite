@@ -119,7 +119,7 @@ export type AcceptResult =
  *  4. mint the child code, skipped for the final seat.
  * If any gate fails the whole statement is a no-op.
  */
-export async function acceptInvite(code: string, email: string): Promise<AcceptResult> {
+export async function acceptInvite(code: string, name: string): Promise<AcceptResult> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const child = generateCode();
     try {
@@ -138,7 +138,7 @@ export async function acceptInvite(code: string, email: string): Promise<AcceptR
          ),
          accepted AS (
            UPDATE codes c
-           SET status = 'accepted', email = $2, decided_at = now(),
+           SET status = 'accepted', guest_name = $2, decided_at = now(),
                position = (SELECT accepted_count FROM cap)
            FROM target t
            WHERE c.id = t.id AND EXISTS (SELECT 1 FROM cap)
@@ -155,7 +155,7 @@ export async function acceptInvite(code: string, email: string): Promise<AcceptR
            (SELECT capacity FROM cap) AS capacity,
            (SELECT world FROM cap) AS world,
            (SELECT code FROM child) AS child_code`,
-        [code, email, child]
+        [code, name, child]
       );
 
       const position = rows[0]?.position == null ? null : Number(rows[0].position);
@@ -298,7 +298,7 @@ export type CodeRow = {
   code: string;
   status: CodeStatus;
   issuer_id: number | null;
-  email: string | null;
+  guest_name: string | null;
   depth: number;
   position: number | null;
   world: World;
@@ -310,7 +310,7 @@ export type CodeRow = {
 };
 
 export async function allCodes(world?: World): Promise<CodeRow[]> {
-  const sql = `SELECT id, code, status, issuer_id, email, depth, position, world,
+  const sql = `SELECT id, code, status, issuer_id, guest_name, depth, position, world,
                       invitee_phone, passphrase, sms_status,
                       created_at::text, decided_at::text
                FROM codes ${world ? 'WHERE world = $1' : ''} ORDER BY id`;

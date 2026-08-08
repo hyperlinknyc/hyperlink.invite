@@ -7,7 +7,7 @@ type CodeRow = {
   code: string;
   status: 'unused' | 'accepted' | 'declined' | 'dead';
   issuer_id: number | null;
-  email: string | null;
+  guest_name: string | null;
   depth: number;
   position: number | null;
   world: number;
@@ -44,7 +44,7 @@ type State = {
   settings: Settings;
   codes: CodeRow[];
   demoCodes: CodeRow[];
-  emails: string[];
+  guests: { position: number | null; name: string; phone: string }[];
 };
 
 const GLYPH: Record<CodeRow['status'], string> = {
@@ -235,10 +235,13 @@ export default function Admin() {
   }
 
   async function copyEmails() {
-    if (!state?.emails.length) return;
+    if (!state?.guests.length) return;
+    const text = state.guests
+      .map((g) => `${String(g.position).padStart(2, '0')}  ${g.name}  ${g.phone}`)
+      .join('\n');
     try {
-      await navigator.clipboard.writeText(state.emails.join('\n'));
-      setMsg(`COPIED ${state.emails.length} EMAILS.`);
+      await navigator.clipboard.writeText(text);
+      setMsg(`COPIED ${state.guests.length} GUESTS.`);
     } catch {
       setMsg('CLIPBOARD REFUSED — use EXPORT CSV.');
     }
@@ -266,7 +269,7 @@ export default function Admin() {
             {' '}
             {node.status.toUpperCase()}
             {pos}
-            {node.email ? ` ${node.email}` : ''}
+            {node.guest_name ? ` ${node.guest_name}` : ''}
           </span>
           {node.invitee_phone && (
             <span className="dim">
@@ -376,7 +379,7 @@ export default function Admin() {
             [+ MINT SEED CODE]
           </span>{' '}
           <span className="act" onClick={copyEmails}>
-            [COPY ALL EMAILS]
+            [COPY DOOR LIST]
           </span>{' '}
           <a className="act" href="/api/admin/export" style={{ textDecoration: 'none' }}>
             [EXPORT CSV]
@@ -471,7 +474,7 @@ export default function Admin() {
             <>
               <div className="line dim">
                 A full copy of the party mechanics with its own counter. Demo
-                codes run the real flow but never touch the guest list, emails,
+                codes run the real flow but never touch the guest list, door list,
                 or CSV export.
               </div>
               {d && (
@@ -499,16 +502,24 @@ export default function Admin() {
           )}
         </div>
 
-        {/* ── EMAILS ─────────────────────────────────────────────── */}
+        {/* ── DOOR LIST ──────────────────────────────────────────── */}
         <div className="admin-block">
           <div className="line dim">
-            ── EMAILS ({state?.emails.length ?? 0}) ─────────────
+            ── DOOR LIST ({state?.guests.length ?? 0}) ───────────
           </div>
-          {state?.emails.map((e, i) => (
-            <div className="line" key={i}>
-              {e}
-            </div>
-          ))}
+          {state?.guests.length ? (
+            state.guests.map((g, i) => (
+              <div className="line" key={i}>
+                <span className="dim">
+                  {String(g.position ?? 0).padStart(2, '0')}{'  '}
+                </span>
+                <span>{g.name}</span>
+                <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>
+              </div>
+            ))
+          ) : (
+            <div className="line dim">NOBODY HAS ACCEPTED YET.</div>
+          )}
         </div>
 
         <div className="line dim">AUTO-REFRESH 15S</div>

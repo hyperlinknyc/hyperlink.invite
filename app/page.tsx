@@ -17,7 +17,7 @@ type Phase =
   | 'code'
   | 'decision'
   | 'confirmDecline'
-  | 'email'
+  | 'name'
   | 'phone'
   | 'verify'
   | 'end';
@@ -45,7 +45,7 @@ const FALLBACK: Settings = {
 
 type Session = {
   code: string;
-  email: string;
+  name: string;
   position: number;
   capacity: number;
   childCode: string | null;
@@ -57,7 +57,6 @@ type Session = {
   mode?: string;
 };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const DENIALS = [
   'ACCESS DENIED.',
@@ -185,7 +184,7 @@ const DECLINED_LINES: Line[] = [
   L('// CARRIER LOST', 'dim'),
 ];
 
-function emailPromptLines(cfg: Settings): Line[] {
+function namePromptLines(cfg: Settings): Line[] {
   return [
     BLANK,
     L('COMMITMENT LOGGED. TWO REQUIREMENTS REMAIN.'),
@@ -207,7 +206,8 @@ function emailPromptLines(cfg: Settings): Line[] {
       ],
     },
     BLANK,
-    L('[2] LEAVE A CONTACT ADDRESS. BACKUP CHANNEL ONLY. NO SPAM.'),
+    L('[2] WHAT DO WE CALL YOU?'),
+    L('    THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
     BLANK,
   ];
 }
@@ -221,9 +221,9 @@ function payoffLines(s: Session, restored = false): Line[] {
       ? [
           L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
           BLANK,
-          L(`YOU ARE ALREADY IN THE CHAIN, ${s.email}.`),
+          L(`YOU ARE ALREADY IN THE CHAIN, ${s.name}.`),
         ]
-      : [L(`${s.email} — VERIFIED.`)]),
+      : [L(`${s.name} — LOGGED.`)]),
   ];
 
   const seat: Line[] = [
@@ -356,7 +356,7 @@ export default function Home() {
             ...(saved.demo ? DEMO_BANNER : []),
             L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
             BLANK,
-            L(`YOU ARE ALREADY IN THE CHAIN, ${saved.email}.`),
+            L(`YOU ARE ALREADY IN THE CHAIN, ${saved.name}.`),
             ...sentLines(
               saved.maskedPhone ?? 'YOUR CONTACT',
               saved.settings ?? FALLBACK,
@@ -412,7 +412,7 @@ export default function Home() {
       if (p === 'code') await submitCode(value);
       else if (p === 'decision') await submitDecision(value);
       else if (p === 'confirmDecline') await submitConfirmDecline(value);
-      else if (p === 'email') await submitEmail(value);
+      else if (p === 'name') await submitName(value);
       else if (p === 'phone') await submitPhone(value);
       else if (p === 'verify') await submitVerify(value);
     } finally {
@@ -501,8 +501,8 @@ export default function Home() {
     const v = value.toUpperCase();
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
-      await typeLines(emailPromptLines(settingsRef.current));
-      setPhase('email');
+      await typeLines(namePromptLines(settingsRef.current));
+      setPhase('name');
     } else if (['DECLINE', 'D', 'NO', 'N'].includes(v)) {
       await typeLines(CONFIRM_DECLINE);
       setPhase('confirmDecline');
@@ -516,8 +516,8 @@ export default function Home() {
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
       await typeLines([L('RECONSIDERED. WISE.', 'dim')]);
-      await typeLines(emailPromptLines(settingsRef.current));
-      setPhase('email');
+      await typeLines(namePromptLines(settingsRef.current));
+      setPhase('name');
       return;
     }
     if (['DECLINE', 'D'].includes(v)) {
@@ -611,23 +611,27 @@ export default function Home() {
     setPhase('end');
   }
 
-  async function submitEmail(value: string) {
-    const email = value.toLowerCase();
-    print([L(`> ${email}`, 'dim')]);
-    if (!EMAIL_RE.test(email)) {
-      await typeLines([L('THAT IS NOT AN ADDRESS. TRY AGAIN.', 'warn')]);
+  async function submitName(value: string) {
+    const name = value.trim().replace(/\s+/g, ' ');
+    print([L(`> ${name}`, 'dim')]);
+    if (name.length < 2) {
+      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
+      return;
+    }
+    if (name.length > 60) {
+      await typeLines([L('SHORTER. THIS IS A DOOR LIST, NOT A BIOGRAPHY.', 'warn')]);
       return;
     }
     await typeLines([L('TRANSMITTING ...', 'dim')]);
     const res = await api('/api/accept', {
       code: codeRef.current,
-      email,
+      name,
       last4: last4Ref.current,
     });
     if (res?.result === 'accepted') {
       const session: Session = {
         code: codeRef.current,
-        email,
+        name,
         position: res.position,
         capacity: res.capacity,
         childCode: res.childCode,
@@ -649,12 +653,15 @@ export default function Home() {
     } else if (res?.result === 'dead') {
       await typeLines(DEAD_LINES);
       setPhase('end');
-    } else if (res?.result === 'bademail') {
-      await typeLines([L('THAT IS NOT AN ADDRESS. TRY AGAIN.', 'warn')]);
+    } else if (res?.result === 'badname') {
+      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
+    } else if (res?.result === 'wrongphone') {
+      await typeLines([L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'warn')]);
+      setPhase('end');
     } else if (res?.result === 'ratelimited') {
       await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
     } else {
-      // Includes 'error' — stay in the email phase so they can retransmit.
+      // Includes 'error' — stay on the name prompt so they can retransmit.
       await typeLines(FAULT_LINES);
     }
   }
@@ -715,12 +722,12 @@ export default function Home() {
 
   const awaiting =
     !busy &&
-    ['code', 'decision', 'confirmDecline', 'email', 'phone', 'verify'].includes(
+    ['code', 'decision', 'confirmDecline', 'name', 'phone', 'verify'].includes(
       phase
     );
   const prompt =
-    phase === 'email'
-      ? 'EMAIL > '
+    phase === 'name'
+      ? 'NAME > '
       : phase === 'phone'
         ? 'PHONE > '
         : phase === 'verify'
@@ -728,9 +735,8 @@ export default function Home() {
           : '> ';
 
   // Free-text phases must not be force-uppercased.
-  const freeText = phase === 'email' || phase === 'phone' || phase === 'verify';
-  const inputType =
-    phase === 'email' ? 'email' : phase === 'phone' || phase === 'verify' ? 'tel' : 'text';
+  const freeText = phase === 'name' || phase === 'phone' || phase === 'verify';
+  const inputType = phase === 'phone' || phase === 'verify' ? 'tel' : 'text';
 
   return (
     <Screen
@@ -749,28 +755,18 @@ export default function Home() {
           className="ghost"
           value={input}
           onChange={(e) =>
-            setInput(
-              phase === 'email'
-                ? e.target.value.replace(/\s/g, '')
-                : freeText
-                  ? e.target.value
-                  : e.target.value.toUpperCase()
-            )
+            setInput(freeText ? e.target.value : e.target.value.toUpperCase())
           }
           onKeyDown={(e) => {
             if (e.key === 'Enter') submit(input);
           }}
           type={inputType}
-          inputMode={
-            phase === 'email'
-              ? 'email'
-              : phase === 'phone' || phase === 'verify'
-                ? 'tel'
-                : 'text'
+          inputMode={phase === 'phone' || phase === 'verify' ? 'tel' : 'text'}
+          autoCapitalize={
+            phase === 'name' ? 'words' : freeText ? 'none' : 'characters'
           }
-          autoCapitalize={freeText ? 'none' : 'characters'}
           autoComplete={
-            phase === 'email' ? 'email' : phase === 'phone' ? 'tel' : 'off'
+            phase === 'name' ? 'name' : phase === 'phone' ? 'tel' : 'off'
           }
           autoCorrect="off"
           spellCheck={false}

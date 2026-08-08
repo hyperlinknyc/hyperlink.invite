@@ -46,6 +46,10 @@ const SCHEMA: Stmt[] = [
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS world INT NOT NULL DEFAULT 1`,
   // Invitations are delivered by text: the issuer supplies their friend's
   // number plus a passphrase only the two of them would recognise.
+  // What the guest calls themselves — this is the door list. Email was
+  // dropped: the phone already reaches them, and a name is what you read
+  // out at the door.
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS guest_name TEXT`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS invitee_phone TEXT`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS passphrase TEXT`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS sms_status TEXT`,
