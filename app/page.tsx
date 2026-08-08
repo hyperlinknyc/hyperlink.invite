@@ -309,13 +309,28 @@ function payoffLines(s: Session, restored = false): Line[] {
   ];
 }
 
-// Shown once the invitation has been addressed and is ready to send.
-function sentLines(invitedName: string, cfg: Settings): Line[] {
+// Shown once the invitation has been addressed. Deliberately ends on the
+// send action and nothing else — sending is the only step that grows the
+// chain, and intent is highest the second after they name someone.
+function sentLines(invitedName: string): Line[] {
   return [
     BLANK,
     L(`INVITATION PREPARED FOR ${invitedName.toUpperCase()}.`),
-    L('SEND IT FROM YOUR OWN PHONE — PICK THEM IN MESSAGES,', 'dim'),
-    L('WHATSAPP, WHEREVER. IT LANDS FROM A NUMBER THEY KNOW.', 'dim'),
+    L('IT SENDS FROM YOUR OWN PHONE, SO IT LANDS FROM A NUMBER', 'dim'),
+    L('THEY ALREADY KNOW. PICK THEM ON THE NEXT SCREEN.', 'dim'),
+    BLANK,
+  ];
+}
+
+/**
+ * Everything after the send. Held back until they have actually tapped it,
+ * so the screen carries one instruction at a time — and so the Instagram
+ * link, the only thing here that leaves the page, comes last.
+ */
+function afterSendLines(cfg: Settings): Line[] {
+  return [
+    BLANK,
+    L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
     ...instagramBlock(cfg),
     BLANK,
     L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
@@ -326,6 +341,7 @@ function sentLines(invitedName: string, cfg: Settings): Line[] {
           } as Line,
         ]
       : []),
+    ...SIGN_OFF,
   ];
 }
 
@@ -357,6 +373,7 @@ export default function Home() {
   const handoffRef = useRef('');
   const messageRef = useRef('');
   const claimNameRef = useRef('');
+  const revealedRef = useRef(false);
   const invitedNameRef = useRef<string | null>(null);
   const last4Ref = useRef('');
 
@@ -387,10 +404,8 @@ export default function Home() {
             L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
             BLANK,
             L(`YOU ARE ALREADY IN THE CHAIN, ${saved.name}.`),
-            ...sentLines(
-              saved.invitedName ?? 'YOUR GUEST',
-              saved.settings ?? FALLBACK
-            ),
+            ...sentLines(saved.invitedName ?? 'YOUR GUEST'),
+            ...afterSendLines(saved.settings ?? FALLBACK),
           ]);
           setPhase('end');
           return;
@@ -696,7 +711,7 @@ export default function Home() {
       ]);
     }
 
-    await typeLines(sentLines(named, settingsRef.current));
+    await typeLines(sentLines(named));
     print([
       {
         spans: [
@@ -711,9 +726,6 @@ export default function Home() {
           { t: ' AND SEND IT HOWEVER YOU LIKE.', cls: 'dim' },
         ],
       },
-      BLANK,
-      L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
-      ...SIGN_OFF,
     ]);
     setPhase('end');
   }
@@ -816,18 +828,32 @@ export default function Home() {
           // The link already sits inside `text`; passing `url` as well makes
           // some targets append it a second time.
           await nav.share({ text });
-          print([L('SENT. THAT WAS YOUR ONE.', 'dim')]);
+          print([L('SENT.', 'dim')]);
         } catch {
           // Dismissing the sheet lands here too, so stay neutral.
           print([L('NOT SENT YET. TAP AGAIN WHEN READY.', 'dim')]);
         }
+        await revealAfterSend();
         return;
       }
       // No share sheet (desktop, some in-app browsers) — fall back to copy.
       await copyInvitation();
+      await revealAfterSend();
     } else if (act === 'copy-message') {
       await copyInvitation();
+      await revealAfterSend();
     }
+  }
+
+  /**
+   * The Instagram requirement, date and sign-off, held back until they have
+   * dealt with sending. Printed once — the send link stays live for a retry,
+   * and tapping it again should not repeat the whole closing screen.
+   */
+  async function revealAfterSend() {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    await typeLines(afterSendLines(settingsRef.current));
   }
 
   /** Clipboard, with the raw text printed on screen if that is refused too. */

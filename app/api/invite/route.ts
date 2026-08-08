@@ -48,12 +48,9 @@ export async function POST(req: Request) {
     const claim = await claimInviteByName(code, invitedName);
     if (!claim.ok) return NextResponse.json({ result: claim.reason });
 
-    const message = buildInviteMessage({
-      code,
-      origin,
-      fromHost,
-      invitedName: claim.invitedName,
-    });
+    // The name never goes into the message body — it is the challenge that
+    // opens the invite. It comes back only so the UI can say who it is for.
+    const message = buildInviteMessage({ code, origin, fromHost });
     return NextResponse.json({
       result: 'named',
       alreadyNamed: claim.alreadyNamed,
