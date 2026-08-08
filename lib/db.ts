@@ -18,6 +18,10 @@ const SCHEMA: Stmt[] = [
   // Installs predating the demo world had CHECK (id = 1) and no capacity column.
   `ALTER TABLE event_state DROP CONSTRAINT IF EXISTS event_state_id_check`,
   `ALTER TABLE event_state ADD COLUMN IF NOT EXISTS capacity INT NOT NULL DEFAULT 40`,
+  // accepted_count is occupancy and can fall when a guest is removed.
+  // next_position only ever climbs, so a freed seat never hands the next
+  // arrival a chain number that is already taken.
+  `ALTER TABLE event_state ADD COLUMN IF NOT EXISTS next_position INT NOT NULL DEFAULT 0`,
   [
     `INSERT INTO event_state (id, accepted_count, capacity)
      VALUES ($1, 0, $2) ON CONFLICT (id) DO NOTHING`,
@@ -59,6 +63,14 @@ const SCHEMA: Stmt[] = [
   `ALTER TABLE codes DROP CONSTRAINT IF EXISTS codes_position_key`,
   `CREATE UNIQUE INDEX IF NOT EXISTS codes_world_position
      ON codes (world, position)`,
+  // Backfill next_position for databases that predate it. Lives here, after
+  // `codes` exists, because it reads the highest position already issued.
+  `UPDATE event_state e SET next_position = GREATEST(
+     e.accepted_count,
+     COALESCE((SELECT MAX(position) FROM codes WHERE world = e.id), 0)
+   ) WHERE e.next_position < e.accepted_count
+      OR e.next_position < COALESCE(
+           (SELECT MAX(position) FROM codes WHERE world = e.id), 0)`,
 
   // ── event settings, editable from the admin console ────────────────────
   `CREATE TABLE IF NOT EXISTS settings (
@@ -81,6 +93,15 @@ const SCHEMA: Stmt[] = [
       DEFAULTS.igHandle,
       DEFAULTS.igUrl,
     ],
+  ],
+  // Machine datetimes for the calendar file. Added after the CREATE above,
+  // since ALTER on a table that does not exist yet aborts the whole schema.
+  `ALTER TABLE settings ADD COLUMN IF NOT EXISTS starts_at TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE settings ADD COLUMN IF NOT EXISTS ends_at TEXT NOT NULL DEFAULT ''`,
+  [
+    `UPDATE settings SET starts_at = $1, ends_at = $2
+     WHERE id = 1 AND starts_at = '' AND ends_at = ''`,
+    [DEFAULTS.startsAt, DEFAULTS.endsAt],
   ],
 
   `CREATE TABLE IF NOT EXISTS attempts (

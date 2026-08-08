@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       position: c.position,
       name: c.guest_name ?? '(unnamed)',
       phone: c.invitee_phone ?? '',
+      code: c.code,
     }));
 
   return NextResponse.json({

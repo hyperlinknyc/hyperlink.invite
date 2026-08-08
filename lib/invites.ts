@@ -100,7 +100,10 @@ export async function clearInviteClaim(code: string): Promise<boolean> {
 export type AcceptResult =
   | {
       ok: true;
+      /** Their number in the chain. Never reused, even after a removal. */
       position: number;
+      /** Live occupancy. Falls when a guest is removed; drives capacity. */
+      accepted: number;
       capacity: number;
       childCode: string | null;
       spotsRemaining: number;
@@ -131,15 +134,16 @@ export async function acceptInvite(code: string, name: string): Promise<AcceptRe
          ),
          cap AS (
            UPDATE event_state e
-           SET accepted_count = e.accepted_count + 1
+           SET accepted_count = e.accepted_count + 1,
+               next_position = e.next_position + 1
            FROM target t
            WHERE e.id = t.world AND e.accepted_count < e.capacity
-           RETURNING e.accepted_count, e.capacity, e.id AS world
+           RETURNING e.accepted_count, e.capacity, e.next_position, e.id AS world
          ),
          accepted AS (
            UPDATE codes c
            SET status = 'accepted', guest_name = $2, decided_at = now(),
-               position = (SELECT accepted_count FROM cap)
+               position = (SELECT next_position FROM cap)
            FROM target t
            WHERE c.id = t.id AND EXISTS (SELECT 1 FROM cap)
            RETURNING c.id, c.depth, c.world
@@ -151,7 +155,8 @@ export async function acceptInvite(code: string, name: string): Promise<AcceptRe
            RETURNING code
          )
          SELECT
-           (SELECT accepted_count FROM cap) AS position,
+           (SELECT next_position FROM cap) AS position,
+           (SELECT accepted_count FROM cap) AS accepted,
            (SELECT capacity FROM cap) AS capacity,
            (SELECT world FROM cap) AS world,
            (SELECT code FROM child) AS child_code`,
@@ -161,15 +166,19 @@ export async function acceptInvite(code: string, name: string): Promise<AcceptRe
       const position = rows[0]?.position == null ? null : Number(rows[0].position);
       if (position !== null) {
         const capacity = Number(rows[0].capacity);
+        const accepted = Number(rows[0].accepted);
         const world = Number(rows[0].world) as World;
-        if (position >= capacity) await killAllUnused(world);
+        // Occupancy, not chain number, decides whether the room is sealed —
+        // they diverge as soon as a guest is removed.
+        if (accepted >= capacity) await killAllUnused(world);
         return {
           ok: true,
           position,
+          accepted,
           capacity,
           world,
           childCode: (rows[0].child_code as string) ?? null,
-          spotsRemaining: Math.max(0, capacity - position),
+          spotsRemaining: Math.max(0, capacity - accepted),
         };
       }
 
@@ -284,6 +293,69 @@ export async function killCode(code: string): Promise<boolean> {
     [code]
   );
   return rows.length > 0;
+}
+
+export type RevokeResult =
+  | { ok: true; name: string; freedChild: string | null; remaining: number }
+  | { ok: false; reason: 'notfound' | 'notaccepted' };
+
+/**
+ * Admin: remove an accepted guest and give their seat back.
+ *
+ * Decrements occupancy in the same statement that voids the row, so the
+ * seat and the guest can never disagree. Their chain position is released
+ * (set NULL) but never reissued — next_position keeps climbing, so nobody
+ * inherits their number.
+ *
+ * Their unused invitation dies with them. Anyone they already brought in
+ * stays: that guest accepted in good faith, and cascading would let one
+ * removal collapse an arbitrary share of the party.
+ */
+export async function revokeGuest(code: string): Promise<RevokeResult> {
+  const rows = await q(
+    `WITH target AS (
+       SELECT id, world, guest_name FROM codes
+       WHERE code = $1 AND status = 'accepted'
+       FOR UPDATE
+     ),
+     dec AS (
+       UPDATE event_state e
+       SET accepted_count = GREATEST(0, e.accepted_count - 1)
+       FROM target t
+       WHERE e.id = t.world
+       RETURNING e.accepted_count, e.capacity
+     ),
+     revoked AS (
+       UPDATE codes c
+       SET status = 'dead', position = NULL, decided_at = now()
+       FROM target t
+       WHERE c.id = t.id AND EXISTS (SELECT 1 FROM dec)
+       RETURNING c.id
+     ),
+     orphan AS (
+       UPDATE codes c
+       SET status = 'dead', decided_at = now()
+       WHERE c.issuer_id = (SELECT id FROM revoked) AND c.status = 'unused'
+       RETURNING c.code
+     )
+     SELECT (SELECT id FROM revoked) AS id,
+            (SELECT guest_name FROM target) AS name,
+            (SELECT code FROM orphan) AS freed_child,
+            (SELECT accepted_count FROM dec) AS accepted,
+            (SELECT capacity FROM dec) AS capacity`,
+    [code]
+  );
+
+  if (rows[0]?.id == null) {
+    const info = await codeInfo(code);
+    return { ok: false, reason: info === null ? 'notfound' : 'notaccepted' };
+  }
+  return {
+    ok: true,
+    name: (rows[0].name as string) ?? '(unnamed)',
+    freedChild: (rows[0].freed_child as string) ?? null,
+    remaining: Math.max(0, Number(rows[0].capacity) - Number(rows[0].accepted)),
+  };
 }
 
 /** Admin: wipe the demo world back to zero. Never touches the live party. */

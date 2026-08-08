@@ -8,6 +8,8 @@ export type Settings = {
   hood: string;
   igHandle: string;
   igUrl: string;
+  startsAt: string;
+  endsAt: string;
   capacity: number;
   demoCapacity: number;
 };
@@ -19,11 +21,13 @@ export const SETTING_FIELDS = [
   'hood',
   'igHandle',
   'igUrl',
+  'startsAt',
+  'endsAt',
 ] as const;
 
 export async function getSettings(): Promise<Settings> {
   const rows = await q(
-    `SELECT s.edition, s.event_date, s.event_time, s.hood, s.ig_handle, s.ig_url,
+    `SELECT s.edition, s.event_date, s.event_time, s.hood, s.ig_handle, s.ig_url, s.starts_at, s.ends_at,
             (SELECT capacity FROM event_state WHERE id = $1) AS capacity,
             (SELECT capacity FROM event_state WHERE id = $2) AS demo_capacity
      FROM settings s WHERE s.id = 1`,
@@ -37,6 +41,8 @@ export async function getSettings(): Promise<Settings> {
     hood: String(r.hood ?? ''),
     igHandle: String(r.ig_handle ?? ''),
     igUrl: String(r.ig_url ?? ''),
+    startsAt: String(r.starts_at ?? ''),
+    endsAt: String(r.ends_at ?? ''),
     capacity: Number(r.capacity ?? 0),
     demoCapacity: Number(r.demo_capacity ?? 0),
   };
@@ -49,6 +55,8 @@ const COLUMN: Record<string, string> = {
   hood: 'hood',
   igHandle: 'ig_handle',
   igUrl: 'ig_url',
+  startsAt: 'starts_at',
+  endsAt: 'ends_at',
 };
 
 /**
@@ -64,6 +72,14 @@ export async function updateSettings(
     const v = patch[key];
     if (v === undefined) continue;
     const text = String(v).trim();
+    if (key === 'startsAt' || key === 'endsAt') {
+      // Blank is allowed: it simply means no calendar file is offered.
+      if (text && !/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}$/.test(text)) {
+        return { ok: false, error: `${key} must look like 2026-08-22T21:00` };
+      }
+      await q(`UPDATE settings SET ${COLUMN[key]} = $1 WHERE id = 1`, [text]);
+      continue;
+    }
     if (!text) return { ok: false, error: `${key} cannot be empty` };
     if (text.length > 200) return { ok: false, error: `${key} is too long` };
     if (key === 'igUrl' && !/^https?:\/\//i.test(text)) {

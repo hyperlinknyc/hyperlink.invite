@@ -19,6 +19,8 @@ export async function GET() {
       hood: settings.hood,
       igHandle: settings.igHandle,
       igUrl: settings.igUrl,
+      // Only offer the calendar when there is a real datetime behind it.
+      hasCalendar: Boolean(settings.startsAt && settings.endsAt),
     },
   });
 }

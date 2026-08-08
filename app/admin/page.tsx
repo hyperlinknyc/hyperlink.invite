@@ -34,6 +34,8 @@ type Settings = {
   hood: string;
   igHandle: string;
   igUrl: string;
+  startsAt: string;
+  endsAt: string;
   capacity: number;
   demoCapacity: number;
 };
@@ -44,7 +46,12 @@ type State = {
   settings: Settings;
   codes: CodeRow[];
   demoCodes: CodeRow[];
-  guests: { position: number | null; name: string; phone: string }[];
+  guests: {
+    position: number | null;
+    name: string;
+    phone: string;
+    code: string;
+  }[];
 };
 
 const GLYPH: Record<CodeRow['status'], string> = {
@@ -61,6 +68,8 @@ const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
   { key: 'hood', label: 'NEIGHBORHD', hint: 'shown instead of the address' },
   { key: 'igHandle', label: 'IG HANDLE ', hint: 'e.g. @hyperlink_nyc' },
   { key: 'igUrl', label: 'IG URL    ', hint: 'https://instagram.com/...' },
+  { key: 'startsAt', label: 'CAL START ', hint: '2026-08-22T21:00 (NY time)' },
+  { key: 'endsAt', label: 'CAL END   ', hint: 'blank both = no calendar link' },
   { key: 'capacity', label: 'CAPACITY  ', hint: 'live party cap' },
   { key: 'demoCapacity', label: 'DEMO CAP  ', hint: 'small = fills fast' },
 ];
@@ -212,6 +221,28 @@ export default function Admin() {
       return;
     const res = await post('/api/admin/unbind', { code });
     setMsg(res.cleared ? `${code} UNBOUND — can be re-aimed.` : `${code} NOT UNBINDABLE`);
+    refresh();
+  }
+
+  /** Remove an accepted guest; their seat returns to the pool. */
+  async function revoke(code: string, name: string) {
+    if (
+      !window.confirm(
+        `Remove ${name} from the party?\n\n` +
+          `Their seat goes back in the pool and their unused invitation dies. ` +
+          `Anyone they already brought in stays. This cannot be undone.`
+      )
+    )
+      return;
+    const res = await post('/api/admin/revoke', { code });
+    if (!res.ok) {
+      setMsg(`COULD NOT REMOVE: ${res.reason}`);
+      return;
+    }
+    setMsg(
+      `REMOVED ${res.name}. ${res.remaining} SEATS OPEN.` +
+        (res.freedChild ? ` THEIR INVITE ${res.freedChild} WAS KILLED.` : '')
+    );
     refresh();
   }
 
@@ -514,7 +545,10 @@ export default function Admin() {
                   {String(g.position ?? 0).padStart(2, '0')}{'  '}
                 </span>
                 <span>{g.name}</span>
-                <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>
+                <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>{' '}
+                <span className="act" onClick={() => revoke(g.code, g.name)}>
+                  [REMOVE]
+                </span>
               </div>
             ))
           ) : (

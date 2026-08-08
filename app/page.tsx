@@ -32,6 +32,7 @@ type Settings = {
   hood: string;
   igHandle: string;
   igUrl: string;
+  hasCalendar?: boolean;
 };
 
 const FALLBACK: Settings = {
@@ -136,13 +137,13 @@ function revealLines(
     L(s.hood),
     L('COVER: NONE. BAR: BYOB.'),
     L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`),
-    L('EXACT LOCATION: TRANSMITTED LATER. KEEP READING.', 'dim'),
+    L('STREET ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
-    L('2. ACCEPT, AND YOU CAN BRING EXACTLY ONE PERSON.'),
-    L('   YOU GIVE US THEIR NUMBER. WE PREPARE THE MESSAGE.'),
-    L('   ONE PERSON. NOT A GROUP. CHOOSE WELL.'),
+    L('2. ACCEPT, AND YOU CAN BRING ONE PERSON.'),
+    L('   YOU GIVE US THEIR NUMBER, WE PREPARE THE MESSAGE.'),
+    L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     L('3. DECLINE, AND THIS CODE DIES. PERMANENTLY.', 'warn'),
     L('   THIS LINK WILL NEVER OPEN AGAIN — NOT FOR YOU,', 'warn'),
     L('   NOT FOR ANYONE. YOUR SEAT GOES BACK IN THE POOL.', 'warn'),
@@ -196,9 +197,11 @@ function namePromptLines(cfg: Settings): Line[] {
         { t: ' ON INSTAGRAM. MANDATORY.' },
       ],
     },
-    L('    THE EXACT ADDRESS AND DOOR TIME DROP THROUGH THAT'),
-    L("    ACCOUNT'S PRIVATE BROADCAST LIST — NOWHERE ELSE."),
-    L('    NO FOLLOW → NO ADDRESS → NO ENTRY.', 'warn'),
+    L('    THE ACCOUNT IS PRIVATE. REQUEST IT AND WE LET YOU IN.'),
+    L('    YOU HAVE THE DATE AND THE HOUR ALREADY.'),
+    L('    THE STREET IS THE ONE THING WE HOLD BACK — IT GOES UP'),
+    L('    THERE, SEEN ONLY BY PEOPLE WE APPROVED.'),
+    L('    NOT FOLLOWING WHEN IT DROPS MEANS NOT KNOWING WHERE.', 'warn'),
     {
       spans: [
         { t: '    ' },
@@ -241,8 +244,15 @@ function payoffLines(s: Session, restored = false): Line[] {
       L('YOU TOOK THE FINAL SEAT.', 'warn'),
       L('THE CHAIN ENDS WITH YOU. NO FURTHER INVITATIONS EXIST.'),
       BLANK,
-      L(`REMINDER: THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
-      L(`${cfg.eventDate} // ${cfg.hood} // BYOB`),
+      L(`THE STREET DROPS VIA ${cfg.igHandle}. BE FOLLOWING BY THEN.`),
+      L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
+      ...(cfg.hasCalendar
+      ? [
+              {
+                spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical' }],
+              } as Line,
+          ]
+        : []),
       BLANK,
       L('SEE YOU IN THE DARK.'),
       L('// CONNECTION ARCHIVED', 'dim'),
@@ -257,8 +267,8 @@ function payoffLines(s: Session, restored = false): Line[] {
     BLANK,
     L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
-    L('WHOSE NUMBER? THE INVITATION GOES STRAIGHT TO THEIR PHONE.'),
-    L('NO SCREENSHOTS. NO FORWARDING. NO GROUP CHATS.', 'dim'),
+    L('WHOSE NUMBER? WE WILL PREPARE THE MESSAGE FOR THEM.'),
+    L('IT IS KEYED TO THAT HANDSET, SO IT ONLY OPENS FOR THEM.', 'dim'),
     ...(hasContactPicker()
       ? [
           BLANK,
@@ -298,11 +308,19 @@ function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
     BLANK,
     L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
     BLANK,
-    L(`THE ADDRESS DROPS VIA ${cfg.igHandle}. BE FOLLOWING.`),
+    L(`THE STREET DROPS VIA ${cfg.igHandle}. BE FOLLOWING BY THEN.`),
     {
       spans: [{ t: '    ' }, { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl }],
     },
-    L(`${cfg.eventDate} // ${cfg.hood} // BYOB`),
+    L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
+    ...(cfg.hasCalendar
+      ? [
+          {
+            spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical' }],
+          } as Line,
+        ]
+      : []),
+
     BLANK,
     L('SEE YOU IN THE DARK.'),
     L('// CONNECTION ARCHIVED', 'dim'),
