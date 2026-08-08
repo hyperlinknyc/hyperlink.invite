@@ -58,11 +58,13 @@ export type CodeInfo = {
   status: CodeStatus;
   world: World;
   inviteePhone: string | null;
+  /** 0 means a seed you issued yourself; deeper codes came from a guest. */
+  depth: number;
 };
 
 export async function codeInfo(code: string): Promise<CodeInfo | null> {
   const rows = await q(
-    `SELECT status, world, invitee_phone FROM codes WHERE code = $1`,
+    `SELECT status, world, invitee_phone, depth FROM codes WHERE code = $1`,
     [code]
   );
   if (rows.length === 0) return null;
@@ -70,6 +72,7 @@ export async function codeInfo(code: string): Promise<CodeInfo | null> {
     status: rows[0].status as CodeStatus,
     world: Number(rows[0].world) as World,
     inviteePhone: (rows[0].invitee_phone as string) ?? null,
+    depth: Number(rows[0].depth ?? 0),
   };
 }
 

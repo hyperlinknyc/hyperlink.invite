@@ -41,11 +41,16 @@ export function buildInviteMessage(opts: {
   code: string;
   origin: string;
   passphrase?: string;
+  /** True for a seed code you issue yourself, false for a guest's invite. */
+  fromHost?: boolean;
 }): string {
   const link = `${opts.origin}/?c=${opts.code}`;
   const lead = opts.passphrase
     ? [`"${opts.passphrase}"`, ``, `whoever that means to you put you on a list.`]
-    : [`i can bring one person. it's you.`];
+    : opts.fromHost
+      ? // You are throwing it, not being brought to it.
+        [`putting something together. you're on the list.`]
+      : [`i can bring one person. it's you.`];
   return [...lead, ``, link, ``, `one code, one use. don't post it.`].join('\n');
 }
 

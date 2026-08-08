@@ -47,6 +47,8 @@ export async function POST(req: Request) {
       code,
       origin,
       passphrase: smsMode() === 'server' ? pass || undefined : undefined,
+      // Depth 0 means you minted it, so the message speaks as the host.
+      fromHost: info.depth === 0,
     });
 
   // Already delivered — don't send twice. Echo back what is actually on file,
