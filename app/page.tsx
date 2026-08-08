@@ -185,33 +185,45 @@ const DECLINED_LINES: Line[] = [
   L('// CARRIER LOST', 'dim'),
 ];
 
+/**
+ * Name first, deliberately. The Instagram link is the only thing on the whole
+ * flow that navigates away, and anyone who taps it mid-accept never comes back
+ * to finish — no name, no seat, while believing they are in. So the requirement
+ * is stated here in plain text and the tappable link waits until the end, once
+ * their place is actually secured.
+ */
 function namePromptLines(cfg: Settings): Line[] {
   return [
     BLANK,
-    L('COMMITMENT LOGGED. TWO REQUIREMENTS REMAIN.'),
+    L('COMMITMENT LOGGED.'),
+    BLANK,
+    L('WHAT DO WE CALL YOU?'),
+    L('THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
+    BLANK,
+    L(`(YOU WILL ALSO NEED TO FOLLOW ${cfg.igHandle} — WE WILL`, 'dim'),
+    L(' HAND YOU THE LINK ONCE YOU ARE THROUGH.)', 'dim'),
+    BLANK,
+  ];
+}
+
+/** The Instagram requirement, shown only once the guest is safely on the list. */
+function instagramBlock(cfg: Settings): Line[] {
+  return [
     BLANK,
     {
       spans: [
-        { t: '[1] FOLLOW ' },
+        { t: 'NOW FOLLOW ' },
         { t: cfg.igHandle, href: cfg.igUrl },
-        { t: ' ON INSTAGRAM. MANDATORY.' },
+        { t: '. MANDATORY.' },
       ],
     },
-    L('    THE ACCOUNT IS PRIVATE. REQUEST IT AND WE LET YOU IN.'),
-    L('    YOU HAVE THE DATE AND THE HOUR ALREADY.'),
-    L('    THE STREET IS THE ONE THING WE HOLD BACK — IT GOES UP'),
-    L('    THERE, SEEN ONLY BY PEOPLE WE APPROVED.'),
-    L('    NOT FOLLOWING WHEN IT DROPS MEANS NOT KNOWING WHERE.', 'warn'),
+    L('THE ACCOUNT IS PRIVATE. REQUEST IT AND WE LET YOU IN.'),
+    L('THE STREET IS THE ONE THING WE HOLD BACK — IT GOES UP'),
+    L('THERE, SEEN ONLY BY PEOPLE WE APPROVED.'),
+    L('NOT FOLLOWING WHEN IT DROPS MEANS NOT KNOWING WHERE.', 'warn'),
     {
-      spans: [
-        { t: '    ' },
-        { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' },
-      ],
+      spans: [{ t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
     },
-    BLANK,
-    L('[2] WHAT DO WE CALL YOU?'),
-    L('    THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
-    BLANK,
   ];
 }
 
@@ -243,8 +255,8 @@ function payoffLines(s: Session, restored = false): Line[] {
       ...seat,
       L('YOU TOOK THE FINAL SEAT.', 'warn'),
       L('THE CHAIN ENDS WITH YOU. NO FURTHER INVITATIONS EXIST.'),
+      ...instagramBlock(cfg),
       BLANK,
-      L(`THE STREET DROPS VIA ${cfg.igHandle}. BE FOLLOWING BY THEN.`),
       L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
       ...(cfg.hasCalendar
       ? [
@@ -308,10 +320,8 @@ function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
     BLANK,
     L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
     BLANK,
-    L(`THE STREET DROPS VIA ${cfg.igHandle}. BE FOLLOWING BY THEN.`),
-    {
-      spans: [{ t: '    ' }, { t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
-    },
+    ...instagramBlock(cfg),
+    BLANK,
     L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
     ...(cfg.hasCalendar
       ? [
