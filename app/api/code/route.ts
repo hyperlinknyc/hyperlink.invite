@@ -6,6 +6,7 @@ import {
   worldState,
   killAllUnused,
   phoneMatches,
+  nameMatches,
 } from '@/lib/invites';
 import { clientIp, overLimit } from '@/lib/rateLimit';
 import { WORLD_DEMO } from '@/lib/defaults';
@@ -51,10 +52,22 @@ export async function POST(req: Request) {
     }
   }
 
+  // Addressed to a name: they must produce it. The name is never sent back
+  // before this passes, so opening the link reveals nothing to guess with.
+  if (info.invitedName) {
+    const claimed = String(body.claimName ?? '');
+    if (!claimed) return NextResponse.json({ result: 'needname' });
+    if (!nameMatches(info.invitedName, claimed)) {
+      return NextResponse.json({ result: 'wrongname' });
+    }
+  }
+
   return NextResponse.json({
     result: 'valid',
     code,
     demo: info.world === WORLD_DEMO,
+    // Safe to return only now: they already proved they know it.
+    invitedName: info.invitedName,
     spotsRemaining: state.remaining,
     capacity: state.capacity,
   });

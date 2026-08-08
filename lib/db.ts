@@ -54,6 +54,16 @@ const SCHEMA: Stmt[] = [
   // dropped: the phone already reaches them, and a name is what you read
   // out at the door.
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS guest_name TEXT`,
+  // The redeemer's OWN number, given by them on arrival. More reliable than
+  // asking an inviter to look up someone else's, and it is the number that
+  // ends up on the door list.
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS guest_phone TEXT`,
+  // First name the inviter says they are sending this to. Not a secret —
+  // it lets the recipient confirm the invite is meant for them, and lets
+  // admin spot an invite claimed by someone other than who it was sent to.
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS invited_name TEXT`,
+  // Legacy/optional: a number the invite was pre-locked to (admin can still
+  // aim a code this way). Null for share-sheet invites.
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS invitee_phone TEXT`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS passphrase TEXT`,
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS sms_status TEXT`,

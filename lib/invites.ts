@@ -58,13 +58,16 @@ export type CodeInfo = {
   status: CodeStatus;
   world: World;
   inviteePhone: string | null;
+  /** First name the inviter said they were sending this to, if any. */
+  invitedName: string | null;
   /** 0 means a seed you issued yourself; deeper codes came from a guest. */
   depth: number;
 };
 
 export async function codeInfo(code: string): Promise<CodeInfo | null> {
   const rows = await q(
-    `SELECT status, world, invitee_phone, depth FROM codes WHERE code = $1`,
+    `SELECT status, world, invitee_phone, invited_name, depth
+     FROM codes WHERE code = $1`,
     [code]
   );
   if (rows.length === 0) return null;
@@ -72,7 +75,50 @@ export async function codeInfo(code: string): Promise<CodeInfo | null> {
     status: rows[0].status as CodeStatus,
     world: Number(rows[0].world) as World,
     inviteePhone: (rows[0].invitee_phone as string) ?? null,
+    invitedName: (rows[0].invited_name as string) ?? null,
     depth: Number(rows[0].depth ?? 0),
+  };
+}
+
+export type NameClaimResult =
+  | { ok: true; alreadyNamed: boolean; invitedName: string }
+  | { ok: false; reason: 'notfound' | 'spent' };
+
+/**
+ * Record who an invitation is being sent to, by first name only.
+ *
+ * This is the share-sheet path: the inviter never has to look up a phone
+ * number, because the OS share sheet is the contact picker. The name is not
+ * a secret and does not gate entry — it lets the recipient see the invite
+ * was meant for them, and lets admin notice when the person who claimed a
+ * code is not the person it was sent to.
+ *
+ * Conditional on the code still being unused and unnamed, so a refresh or
+ * a double-tap cannot silently re-address an invitation already sent.
+ */
+export async function claimInviteByName(
+  code: string,
+  invitedName: string
+): Promise<NameClaimResult> {
+  const rows = await q(
+    `UPDATE codes SET invited_name = $2
+     WHERE code = $1 AND status = 'unused' AND invited_name IS NULL
+     RETURNING invited_name`,
+    [code, invitedName]
+  );
+  if (rows.length > 0) {
+    return { ok: true, alreadyNamed: false, invitedName };
+  }
+  const existing = await q(
+    `SELECT status, invited_name FROM codes WHERE code = $1`,
+    [code]
+  );
+  if (existing.length === 0) return { ok: false, reason: 'notfound' };
+  if (existing[0].status !== 'unused') return { ok: false, reason: 'spent' };
+  return {
+    ok: true,
+    alreadyNamed: true,
+    invitedName: String(existing[0].invited_name ?? ''),
   };
 }
 
@@ -83,6 +129,32 @@ export async function codeInfo(code: string): Promise<CodeInfo | null> {
  * to whoever it was addressed to, not to whoever holds the URL.
  * Seed codes carry no phone and skip the check.
  */
+/**
+ * The recipient must produce the first name the invitation was addressed to.
+ * The name is never displayed before this passes — showing it would hand the
+ * answer to whoever opened the link, which is no check at all.
+ *
+ * Forgiving on shape (case, accents, punctuation, surrounding whitespace)
+ * because a real guest typing their own name should never be turned away on
+ * a technicality.
+ */
+const normalizeName = (v: string) =>
+  v
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+
+export function nameMatches(invitedName: string | null, given: string): boolean {
+  if (!invitedName) return true;
+  const want = normalizeName(invitedName);
+  const got = normalizeName(given);
+  if (!want || !got) return false;
+  // Accept a full name when only a first name was recorded ("alex rivera"
+  // against "alex"), so nobody is blocked for over-answering.
+  return got === want || got.startsWith(want);
+}
+
 export function phoneMatches(inviteePhone: string | null, last4: string): boolean {
   if (!inviteePhone) return true;
   const digits = last4.replace(/\D/g, '');
@@ -125,7 +197,11 @@ export type AcceptResult =
  *  4. mint the child code, skipped for the final seat.
  * If any gate fails the whole statement is a no-op.
  */
-export async function acceptInvite(code: string, name: string): Promise<AcceptResult> {
+export async function acceptInvite(
+  code: string,
+  name: string,
+  phone: string
+): Promise<AcceptResult> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const child = generateCode();
     try {
@@ -145,7 +221,8 @@ export async function acceptInvite(code: string, name: string): Promise<AcceptRe
          ),
          accepted AS (
            UPDATE codes c
-           SET status = 'accepted', guest_name = $2, decided_at = now(),
+           SET status = 'accepted', guest_name = $2, guest_phone = $4,
+               decided_at = now(),
                position = (SELECT next_position FROM cap)
            FROM target t
            WHERE c.id = t.id AND EXISTS (SELECT 1 FROM cap)
@@ -163,7 +240,7 @@ export async function acceptInvite(code: string, name: string): Promise<AcceptRe
            (SELECT capacity FROM cap) AS capacity,
            (SELECT world FROM cap) AS world,
            (SELECT code FROM child) AS child_code`,
-        [code, name, child]
+        [code, name, child, phone]
       );
 
       const position = rows[0]?.position == null ? null : Number(rows[0].position);
@@ -374,6 +451,8 @@ export type CodeRow = {
   status: CodeStatus;
   issuer_id: number | null;
   guest_name: string | null;
+  guest_phone: string | null;
+  invited_name: string | null;
   depth: number;
   position: number | null;
   world: World;
@@ -385,7 +464,8 @@ export type CodeRow = {
 };
 
 export async function allCodes(world?: World): Promise<CodeRow[]> {
-  const sql = `SELECT id, code, status, issuer_id, guest_name, depth, position, world,
+  const sql = `SELECT id, code, status, issuer_id, guest_name, guest_phone,
+                      invited_name, depth, position, world,
                       invitee_phone, passphrase, sms_status,
                       created_at::text, decided_at::text
                FROM codes ${world ? 'WHERE world = $1' : ''} ORDER BY id`;

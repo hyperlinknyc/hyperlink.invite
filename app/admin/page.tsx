@@ -8,6 +8,8 @@ type CodeRow = {
   status: 'unused' | 'accepted' | 'declined' | 'dead';
   issuer_id: number | null;
   guest_name: string | null;
+  guest_phone: string | null;
+  invited_name: string | null;
   depth: number;
   position: number | null;
   world: number;
@@ -51,6 +53,7 @@ type State = {
     name: string;
     phone: string;
     code: string;
+    invitedAs: string;
   }[];
 };
 
@@ -396,7 +399,10 @@ export default function Admin() {
               <span className="act" onClick={() => kill(node.code)}>
                 [KILL]
               </span>
-              {node.invitee_phone && (
+              {node.invited_name && node.status === 'unused' && (
+              <span className="dim">{` → ${node.invited_name}`}</span>
+            )}
+            {node.invitee_phone && (
                 <>
                   {' '}
                   <span className="act" onClick={() => unbind(node.code)}>
@@ -646,7 +652,11 @@ export default function Admin() {
                   {String(g.position ?? 0).padStart(2, '0')}{'  '}
                 </span>
                 <span>{g.name}</span>
-                <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>{' '}
+                <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>
+                {g.invitedAs &&
+                  !g.name.toLowerCase().startsWith(g.invitedAs.toLowerCase()) && (
+                    <span className="warn">{`  (invited as ${g.invitedAs})`}</span>
+                  )}{' '}
                 <span className="act" onClick={() => revoke(g.code, g.name)}>
                   [REMOVE]
                 </span>

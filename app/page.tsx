@@ -18,8 +18,9 @@ type Phase =
   | 'decision'
   | 'confirmDecline'
   | 'name'
-  | 'phone'
+  | 'invitee'
   | 'verify'
+  | 'claimname'
   | 'end';
 
 // Event copy is served by /api/status so it can be changed from the admin
@@ -52,10 +53,9 @@ type Session = {
   childCode: string | null;
   demo?: boolean;
   settings?: Settings;
-  // Set once their one invitation has been pointed at someone.
+  // Set once their one invitation has been addressed to someone.
   inviteSent?: boolean;
-  maskedPhone?: string;
-  mode?: string;
+  invitedName?: string;
 };
 
 
@@ -117,6 +117,14 @@ const VERIFY_PROMPT: Line[] = [
   BLANK,
 ];
 
+const CLAIM_NAME_PROMPT: Line[] = [
+  BLANK,
+  L('THIS INVITATION HAS A NAME ON IT.'),
+  L('TYPE YOUR FIRST NAME TO OPEN IT.'),
+  L('WE WILL NOT TELL YOU WHOSE. YOU EITHER KNOW OR YOU DO NOT.', 'dim'),
+  BLANK,
+];
+
 // Marks a demo run so a sandbox pass is never mistaken for the real thing.
 const DEMO_BANNER: Line[] = [
   L('*** SIMULATION — DEMO WORLD. NOT THE REAL GUEST LIST. ***', 'warn'),
@@ -127,11 +135,17 @@ function revealLines(
   spotsRemaining: number,
   capacity: number,
   s: Settings,
-  demo: boolean
+  demo: boolean,
+  invitedName?: string | null
 ): Line[] {
   return [
     L('KEY ACCEPTED. DECRYPTING INVITATION ...', 'dim'),
     BLANK,
+    // Named by whoever sent it, so the recipient can tell at a glance
+    // whether this was meant for them or reached them by accident.
+    ...(invitedName
+      ? [L(`WELCOME, ${invitedName.toUpperCase()}.`), BLANK]
+      : []),
     ...(demo ? DEMO_BANNER : []),
     L(`${EVENT_NAME} — ${s.edition}`),
     L(`${s.eventDate} // ${s.eventTime}`),
@@ -143,7 +157,7 @@ function revealLines(
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
     L('2. ACCEPT, AND YOU CAN BRING ONE PERSON.'),
-    L('   YOU GIVE US THEIR NUMBER, WE PREPARE THE MESSAGE.'),
+    L('   NAME THEM, THEN SEND IT STRAIGHT FROM YOUR PHONE.'),
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     L('3. DECLINE, AND THIS CODE DIES. PERMANENTLY.', 'warn'),
     L('   THIS LINK WILL NEVER OPEN AGAIN — NOT FOR YOU,', 'warn'),
@@ -193,13 +207,23 @@ const DECLINED_LINES: Line[] = [
  * is stated here in plain text and the tappable link waits until the end, once
  * their place is actually secured.
  */
-function namePromptLines(cfg: Settings): Line[] {
+function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
   return [
     BLANK,
     L('COMMITMENT LOGGED.'),
     BLANK,
-    L('WHAT DO WE CALL YOU?'),
-    L('THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
+    // Whoever invited them already typed a first name. Asking for the whole
+    // name again wastes the one fact we have — and echoing it back doubles
+    // as a quiet check that the invite reached the right person.
+    ...(invitedName
+      ? [
+          L(`${invitedName.toUpperCase()} — AND YOUR LAST NAME?`),
+          L('THAT IS THE NAME ON THE DOOR.', 'dim'),
+        ]
+      : [
+          L('WHAT DO WE CALL YOU?'),
+          L('THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
+        ]),
     BLANK,
     L(`(YOU WILL ALSO NEED TO FOLLOW ${cfg.igHandle} — WE WILL`, 'dim'),
     L(' HAND YOU THE LINK ONCE YOU ARE THROUGH.)', 'dim'),
@@ -266,9 +290,7 @@ function payoffLines(s: Session, restored = false): Line[] {
               } as Line,
           ]
         : []),
-      BLANK,
-      L('SEE YOU IN THE DARK.'),
-      L('// CONNECTION ARCHIVED', 'dim'),
+      ...SIGN_OFF,
     ];
   }
 
@@ -280,47 +302,20 @@ function payoffLines(s: Session, restored = false): Line[] {
     BLANK,
     L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
-    L('WHOSE NUMBER? WE WILL PREPARE THE MESSAGE FOR THEM.'),
-    L('IT IS KEYED TO THAT HANDSET, SO IT ONLY OPENS FOR THEM.', 'dim'),
-    ...(hasContactPicker()
-      ? [
-          BLANK,
-          {
-            spans: [
-              { t: '[PICK FROM CONTACTS]', act: 'pick-contact' },
-              { t: '   or type it below', cls: 'dim' },
-            ],
-          } as Line,
-        ]
-      : []),
+    L('WHO ARE YOU BRINGING? A FIRST NAME IS ENOUGH.'),
+    L('YOU PICK THEM FROM YOUR OWN CONTACTS ON THE NEXT TAP —', 'dim'),
+    L('THERE IS NO NUMBER TO LOOK UP.', 'dim'),
     BLANK,
   ];
 }
 
-/** Contact Picker exists on Chrome/Android only; never on iOS Safari. */
-function hasContactPicker(): boolean {
-  return (
-    typeof navigator !== 'undefined' &&
-    'contacts' in navigator &&
-    typeof (navigator as { contacts?: { select?: unknown } }).contacts?.select ===
-      'function'
-  );
-}
-
-// Shown after the invitation has been dispatched.
-function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
+// Shown once the invitation has been addressed and is ready to send.
+function sentLines(invitedName: string, cfg: Settings): Line[] {
   return [
     BLANK,
-    ...(mode === 'server'
-      ? [L(`TRANSMITTED TO ${masked}.`)]
-      : [
-          L(`MESSAGE READY FOR ${masked}.`),
-          L('IT SENDS FROM YOUR PHONE, NOT OURS — SO IT LANDS FROM', 'dim'),
-          L('A NUMBER THEY ALREADY KNOW. EDIT IT IF YOU WANT.', 'dim'),
-        ]),
-    BLANK,
-    L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
-    BLANK,
+    L(`INVITATION PREPARED FOR ${invitedName.toUpperCase()}.`),
+    L('SEND IT FROM YOUR OWN PHONE — PICK THEM IN MESSAGES,', 'dim'),
+    L('WHATSAPP, WHEREVER. IT LANDS FROM A NUMBER THEY KNOW.', 'dim'),
     ...instagramBlock(cfg),
     BLANK,
     L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
@@ -331,12 +326,15 @@ function sentLines(masked: string, cfg: Settings, mode: string): Line[] {
           } as Line,
         ]
       : []),
-
-    BLANK,
-    L('SEE YOU IN THE DARK.'),
-    L('// CONNECTION ARCHIVED', 'dim'),
   ];
 }
+
+/** The last thing on the screen, printed after the send action. */
+const SIGN_OFF: Line[] = [
+  BLANK,
+  L('SEE YOU IN THE DARK.'),
+  L('// EVERY LINK LEADS TO ANOTHER', 'dim'),
+];
 
 export default function Home() {
   const { done, current, busy, typeLines, print, skip } = useTypewriter();
@@ -358,6 +356,8 @@ export default function Home() {
   const pendingPhoneRef = useRef('');
   const handoffRef = useRef('');
   const messageRef = useRef('');
+  const claimNameRef = useRef('');
+  const invitedNameRef = useRef<string | null>(null);
   const last4Ref = useRef('');
 
   const origin =
@@ -388,17 +388,16 @@ export default function Home() {
             BLANK,
             L(`YOU ARE ALREADY IN THE CHAIN, ${saved.name}.`),
             ...sentLines(
-              saved.maskedPhone ?? 'YOUR CONTACT',
-              saved.settings ?? FALLBACK,
-              saved.mode ?? 'handoff'
+              saved.invitedName ?? 'YOUR GUEST',
+              saved.settings ?? FALLBACK
             ),
           ]);
           setPhase('end');
           return;
         }
-        // Accepted but never named anyone — put them back on the phone prompt.
+        // Accepted but never named anyone — send them back to that prompt.
         await typeLines(payoffLines(saved, true));
-        setPhase('phone');
+        setPhase('invitee');
         return;
       }
 
@@ -443,8 +442,9 @@ export default function Home() {
       else if (p === 'decision') await submitDecision(value);
       else if (p === 'confirmDecline') await submitConfirmDecline(value);
       else if (p === 'name') await submitName(value);
-      else if (p === 'phone') await submitPhone(value);
+      else if (p === 'invitee') await submitInvitee(value);
       else if (p === 'verify') await submitVerify(value);
+      else if (p === 'claimname') await submitClaimName(value);
     } finally {
       submittingRef.current = false;
     }
@@ -457,7 +457,16 @@ export default function Home() {
   async function submitCode(value: string) {
     print([L(`> ${value.toUpperCase()}`, 'dim')]);
     const res = await api('/api/code', { code: value, last4: last4Ref.current });
-    if (res?.result === 'needverify') {
+    if (res?.result === 'needname') {
+      codeRef.current = normalize(value);
+      await typeLines(CLAIM_NAME_PROMPT);
+      setPhase('claimname');
+    } else if (res?.result === 'wrongname') {
+      await typeLines([
+        L('THAT IS NOT THE NAME ON THIS INVITATION.', 'warn'),
+        L('IT WAS MEANT FOR SOMEONE ELSE.', 'dim'),
+      ]);
+    } else if (res?.result === 'needverify') {
       codeRef.current = normalize(value);
       await typeLines(VERIFY_PROMPT);
       setPhase('verify');
@@ -469,8 +478,15 @@ export default function Home() {
     } else if (res?.result === 'valid') {
       codeRef.current = res.code;
       demoRef.current = !!res.demo;
+      invitedNameRef.current = res.invitedName ?? null;
       await typeLines(
-        revealLines(res.spotsRemaining, res.capacity, settingsRef.current, !!res.demo)
+        revealLines(
+          res.spotsRemaining,
+          res.capacity,
+          settingsRef.current,
+          !!res.demo,
+          res.invitedName
+        )
       );
       setPhase('decision');
     } else if (res?.result === 'dead') {
@@ -506,10 +522,20 @@ export default function Home() {
     const res = await api('/api/code', { code: codeRef.current, last4: digits });
     if (res?.result === 'valid') {
       demoRef.current = !!res.demo;
+      invitedNameRef.current = res.invitedName ?? null;
       await typeLines(
-        revealLines(res.spotsRemaining, res.capacity, settingsRef.current, !!res.demo)
+        revealLines(
+          res.spotsRemaining,
+          res.capacity,
+          settingsRef.current,
+          !!res.demo,
+          res.invitedName
+        )
       );
       setPhase('decision');
+    } else if (res?.result === 'needname') {
+      await typeLines(CLAIM_NAME_PROMPT);
+      setPhase('claimname');
     } else if (res?.result === 'wrongphone' || res?.result === 'needverify') {
       last4Ref.current = '';
       await typeLines([
@@ -529,11 +555,62 @@ export default function Home() {
     }
   }
 
+  /**
+   * The name challenge. Whoever sent this typed a first name; the recipient
+   * has to produce it. Deliberately never shown beforehand — displaying it
+   * would hand the answer to anyone holding the link.
+   */
+  async function submitClaimName(value: string) {
+    const given = value.trim();
+    print([L(`> ${given}`, 'dim')]);
+    if (given.length < 1) {
+      await typeLines([L('TYPE YOUR FIRST NAME.', 'warn')]);
+      return;
+    }
+    claimNameRef.current = given;
+    await typeLines([L('CHECKING ...', 'dim')]);
+    const res = await api('/api/code', {
+      code: codeRef.current,
+      last4: last4Ref.current,
+      claimName: given,
+    });
+    if (res?.result === 'valid') {
+      invitedNameRef.current = res.invitedName ?? null;
+      demoRef.current = !!res.demo;
+      await typeLines(
+        revealLines(
+          res.spotsRemaining,
+          res.capacity,
+          settingsRef.current,
+          !!res.demo,
+          res.invitedName
+        )
+      );
+      setPhase('decision');
+    } else if (res?.result === 'wrongname' || res?.result === 'needname') {
+      claimNameRef.current = '';
+      await typeLines([
+        L('THAT IS NOT THE NAME ON THIS INVITATION.', 'warn'),
+        L('IT WAS MEANT FOR SOMEONE ELSE.', 'dim'),
+      ]);
+    } else if (res?.result === 'dead') {
+      await typeLines(DEAD_LINES);
+      setPhase('code');
+    } else if (res?.result === 'full') {
+      await typeLines(FULL_LINES);
+      setPhase('end');
+    } else if (res?.result === 'ratelimited') {
+      await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
+    } else {
+      await typeLines(FAULT_LINES);
+    }
+  }
+
   async function submitDecision(value: string) {
     const v = value.toUpperCase();
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
-      await typeLines(namePromptLines(settingsRef.current));
+      await typeLines(namePromptLines(settingsRef.current, invitedNameRef.current));
       setPhase('name');
     } else if (['DECLINE', 'D', 'NO', 'N'].includes(v)) {
       await typeLines(CONFIRM_DECLINE);
@@ -548,7 +625,7 @@ export default function Home() {
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
       await typeLines([L('RECONSIDERED. WISE.', 'dim')]);
-      await typeLines(namePromptLines(settingsRef.current));
+      await typeLines(namePromptLines(settingsRef.current, invitedNameRef.current));
       setPhase('name');
       return;
     }
@@ -576,87 +653,80 @@ export default function Home() {
   }
 
   // ── naming the one person you get to bring ─────────────────────
-  async function submitPhone(value: string) {
-    print([L(`> ${value}`, 'dim')]);
-    const digits = value.replace(/\D/g, '');
-    if (digits.length < 10 && !value.trim().startsWith('+')) {
-      await typeLines([
-        L('THAT IS NOT A NUMBER. TEN DIGITS, OR +COUNTRY CODE.', 'warn'),
-      ]);
+  /**
+   * No phone number is asked for here on purpose. Nothing on the web can read
+   * an iPhone's contacts, so demanding a number sends the inviter out to the
+   * Contacts app — the same leak that loses people at the Instagram link.
+   * They give a first name instead, and the OS share sheet acts as the contact
+   * picker on the next tap.
+   */
+  async function submitInvitee(value: string) {
+    const who = value.trim().replace(/\s+/g, ' ');
+    print([L(`> ${who}`, 'dim')]);
+    if (who.length < 1) {
+      await typeLines([L('GIVE ME A NAME.', 'warn')]);
       return;
     }
-    const s = sessionRef.current;
-    if (!s?.childCode) return;
+    const sess = sessionRef.current;
+    if (!sess?.childCode) return;
 
-    await typeLines([L('PREPARING TRANSMISSION ...', 'dim')]);
-    const res = await api('/api/invite', {
-      code: s.childCode,
-      phone: value.trim(),
-    });
+    await typeLines([L('PREPARING THE INVITATION ...', 'dim')]);
+    const res = await api('/api/invite', { code: sess.childCode, name: who });
 
-    if (res?.result === 'badphone') {
-      await typeLines([
-        L(`REJECTED: ${String(res.error ?? 'bad number').toUpperCase()}`, 'warn'),
-        L('GIVE ME THE NUMBER AGAIN.'),
-      ]);
-      setPhase('phone');
-      return;
-    }
     if (res?.result === 'error' || res?.result === 'ratelimited') {
       await typeLines(FAULT_LINES);
       return;
     }
-    if (res?.result !== 'sent' && res?.result !== 'handoff' && res?.result !== 'already') {
+    if (res?.result !== 'named') {
       await typeLines(DEAD_LINES);
       setPhase('end');
       return;
     }
 
-    s.inviteSent = true;
-    s.maskedPhone = res.masked;
-    s.mode = res.mode;
-    sessionRef.current = s;
+    const named = String(res.invitedName ?? who);
+    sess.inviteSent = true;
+    sess.invitedName = named;
+    sessionRef.current = sess;
     saveSession();
+    messageRef.current = res.message ?? '';
 
-    if (res.result === 'already') {
-      await typeLines([L('THAT INVITATION IS ALREADY OUT. IT STANDS.', 'warn')]);
-    }
-    if (res.fellBack) {
+    if (res.alreadyNamed) {
       await typeLines([
-        L('OUR TRANSMITTER IS DOWN. ROUTING THROUGH YOUR HANDSET.', 'dim'),
+        L(`ALREADY ADDRESSED TO ${named.toUpperCase()}. THAT STANDS.`, 'warn'),
       ]);
     }
-    await typeLines(sentLines(res.masked, settingsRef.current, res.mode));
 
-    // Hand the composed message to their own SMS app.
-    if (res.handoffLink) {
-      handoffRef.current = res.handoffLink;
-      messageRef.current = res.message ?? '';
-      print([
-        {
-          spans: [
-            { t: '>> OPEN MESSAGES AND SEND <<', href: res.handoffLink, cls: 'cta' },
-            { t: '   (tap)', cls: 'dim' },
-          ],
-        },
-        // Some in-app browsers (Instagram, Facebook) refuse sms: links
-        // outright. Without a fallback the invitation would dead-end here.
-        {
-          spans: [
-            { t: 'IF NOTHING OPENS: ' , cls: 'dim' },
-            { t: '[COPY THE MESSAGE]', act: 'copy-message' },
-            { t: ' AND TEXT IT YOURSELF.', cls: 'dim' },
-          ],
-        },
-      ]);
-    }
+    await typeLines(sentLines(named, settingsRef.current));
+    print([
+      {
+        spans: [
+          { t: `>> SEND IT TO ${named.toUpperCase()} <<`, act: 'share', cls: 'cta' },
+          { t: '   (tap)', cls: 'dim' },
+        ],
+      },
+      {
+        spans: [
+          { t: 'OR ', cls: 'dim' },
+          { t: '[COPY THE INVITATION]', act: 'copy-message' },
+          { t: ' AND SEND IT HOWEVER YOU LIKE.', cls: 'dim' },
+        ],
+      },
+      BLANK,
+      L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
+      ...SIGN_OFF,
+    ]);
     setPhase('end');
   }
 
   async function submitName(value: string) {
-    const name = value.trim().replace(/\s+/g, ' ');
-    print([L(`> ${name}`, 'dim')]);
-    if (name.length < 2) {
+    const typed = value.trim().replace(/\s+/g, ' ');
+    print([L(`> ${typed}`, 'dim')]);
+    // When the inviter supplied a first name we only asked for the surname,
+    // so stitch the two together into the door-list entry.
+    const invited = invitedNameRef.current;
+    const name = invited ? `${invited} ${typed}`.trim() : typed;
+    const floor = invited ? 1 : 2;
+    if (typed.length < floor) {
       await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
       return;
     }
@@ -669,6 +739,7 @@ export default function Home() {
       code: codeRef.current,
       name,
       last4: last4Ref.current,
+      claimName: claimNameRef.current,
     });
     if (res?.result === 'accepted') {
       const session: Session = {
@@ -685,7 +756,7 @@ export default function Home() {
       await typeLines(payoffLines(session));
       // The final guest gets no child code — payoffLines already closes them
       // out, so there is nobody for them to name.
-      setPhase(session.childCode ? 'phone' : 'end');
+      setPhase(session.childCode ? 'invitee' : 'end');
     } else if (res?.result === 'full') {
       await typeLines([
         L('THE LAST SEAT WAS TAKEN WHILE YOU HESITATED.', 'warn'),
@@ -730,68 +801,82 @@ export default function Home() {
       submit('ACCEPT');
     } else if (act === 'decline' && phase === 'decision') {
       submit('DECLINE');
-    } else if (act === 'pick-contact') {
-      await pickContact();
-    } else if (act === 'copy-message') {
+    } else if (act === 'share') {
+      // The OS share sheet IS the contact picker. Nothing on the web can read
+      // an iPhone's address book, but the sheet hands the message to Messages
+      // or WhatsApp where the user picks the person from their real contacts.
+      // It requires a user gesture, so it runs directly off this tap.
       const text = messageRef.current;
       if (!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-        print([L('COPIED. PASTE IT INTO A TEXT TO THEM.', 'dim')]);
-      } catch {
-        // Last resort: put it on screen so it can be selected by hand.
-        print([
-          L('CLIPBOARD REFUSED. THE MESSAGE:', 'warn'),
-          ...text.split('\n').map((line) => L(line, 'dim')),
-        ]);
+      const nav = navigator as Navigator & {
+        share?: (d: { text?: string }) => Promise<void>;
+      };
+      if (typeof nav.share === 'function') {
+        try {
+          // The link already sits inside `text`; passing `url` as well makes
+          // some targets append it a second time.
+          await nav.share({ text });
+          print([L('SENT. THAT WAS YOUR ONE.', 'dim')]);
+        } catch {
+          // Dismissing the sheet lands here too, so stay neutral.
+          print([L('NOT SENT YET. TAP AGAIN WHEN READY.', 'dim')]);
+        }
+        return;
       }
+      // No share sheet (desktop, some in-app browsers) — fall back to copy.
+      await copyInvitation();
+    } else if (act === 'copy-message') {
+      await copyInvitation();
     }
   }
 
-  /**
-   * Contact Picker API. Chrome on Android only — Safari and the Instagram
-   * in-app browser have no such API, which is most of this audience, so the
-   * button only appears when it actually exists and typing is the real path.
-   */
-  async function pickContact() {
-    const nav = navigator as Navigator & {
-      contacts?: {
-        select: (
-          props: string[],
-          opts?: { multiple?: boolean }
-        ) => Promise<Array<{ tel?: string[]; name?: string[] }>>;
-      };
-    };
-    if (!nav.contacts?.select) return;
+  /** Clipboard, with the raw text printed on screen if that is refused too. */
+  async function copyInvitation() {
+    const text = messageRef.current;
+    if (!text) return;
     try {
-      const picked = await nav.contacts.select(['tel', 'name'], { multiple: false });
-      const tel = picked?.[0]?.tel?.[0];
-      if (tel) {
-        setInput(tel);
-        submit(tel);
-      }
+      await navigator.clipboard.writeText(text);
+      print([L('COPIED. PASTE IT INTO A MESSAGE TO THEM.', 'dim')]);
     } catch {
-      /* user dismissed the picker */
+      print([
+        L('CLIPBOARD REFUSED. SEND THIS BY HAND:', 'warn'),
+        ...text.split('\n').map((line) => L(line, 'dim')),
+      ]);
     }
   }
 
   const awaiting =
     !busy &&
-    ['code', 'decision', 'confirmDecline', 'name', 'phone', 'verify'].includes(
+    [
+      'code',
+      'decision',
+      'confirmDecline',
+      'name',
+      'invitee',
+      'verify',
+      'claimname',
+    ].includes(
       phase
     );
   const prompt =
     phase === 'name'
       ? 'NAME > '
-      : phase === 'phone'
-        ? 'PHONE > '
+      : phase === 'invitee'
+        ? 'THEIR FIRST NAME > '
+        : phase === 'claimname'
+          ? 'YOUR FIRST NAME > '
         : phase === 'verify'
           ? 'LAST 4 OF PHONE > '
           : '> ';
 
   // Free-text phases must not be force-uppercased.
-  const freeText = phase === 'name' || phase === 'phone' || phase === 'verify';
-  const inputType = phase === 'phone' || phase === 'verify' ? 'tel' : 'text';
+  const numeric = phase === 'verify';
+  const freeText =
+    phase === 'name' ||
+    phase === 'invitee' ||
+    phase === 'claimname' ||
+    numeric;
+  const inputType = numeric ? 'tel' : 'text';
 
   return (
     <Screen
@@ -817,12 +902,16 @@ export default function Home() {
             if (e.key === 'Enter') submit(input);
           }}
           type={inputType}
-          inputMode={phase === 'phone' || phase === 'verify' ? 'tel' : 'text'}
+          inputMode={numeric ? 'tel' : 'text'}
           autoCapitalize={
-            phase === 'name' ? 'words' : freeText ? 'none' : 'characters'
+            phase === 'name' || phase === 'invitee' || phase === 'claimname'
+              ? 'words'
+              : freeText
+                ? 'none'
+                : 'characters'
           }
           autoComplete={
-            phase === 'name' ? 'name' : phase === 'phone' ? 'tel' : 'off'
+            phase === 'name' || phase === 'claimname' ? 'name' : 'off'
           }
           autoCorrect="off"
           spellCheck={false}

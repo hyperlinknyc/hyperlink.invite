@@ -33,8 +33,10 @@ export async function GET(req: Request) {
     .map((c) => ({
       position: c.position,
       name: c.guest_name ?? '(unnamed)',
-      phone: c.invitee_phone ?? '',
+      phone: c.guest_phone ?? c.invitee_phone ?? '',
       code: c.code,
+      // What the inviter called them, so a claim by someone else is visible.
+      invitedAs: c.invited_name ?? '',
     }));
 
   return NextResponse.json({
