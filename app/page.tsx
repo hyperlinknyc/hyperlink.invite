@@ -346,6 +346,7 @@ export default function Home() {
   const demoRef = useRef(false);
   const pendingPhoneRef = useRef('');
   const handoffRef = useRef('');
+  const messageRef = useRef('');
   const last4Ref = useRef('');
 
   const origin =
@@ -617,11 +618,21 @@ export default function Home() {
     // Hand the composed message to their own SMS app.
     if (res.handoffLink) {
       handoffRef.current = res.handoffLink;
+      messageRef.current = res.message ?? '';
       print([
         {
           spans: [
             { t: '>> OPEN MESSAGES AND SEND <<', href: res.handoffLink },
             { t: '   (tap)', cls: 'dim' },
+          ],
+        },
+        // Some in-app browsers (Instagram, Facebook) refuse sms: links
+        // outright. Without a fallback the invitation would dead-end here.
+        {
+          spans: [
+            { t: 'IF NOTHING OPENS: ' , cls: 'dim' },
+            { t: '[COPY THE MESSAGE]', act: 'copy-message' },
+            { t: ' AND TEXT IT YOURSELF.', cls: 'dim' },
           ],
         },
       ]);
@@ -708,6 +719,19 @@ export default function Home() {
       submit('DECLINE');
     } else if (act === 'pick-contact') {
       await pickContact();
+    } else if (act === 'copy-message') {
+      const text = messageRef.current;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        print([L('COPIED. PASTE IT INTO A TEXT TO THEM.', 'dim')]);
+      } catch {
+        // Last resort: put it on screen so it can be selected by hand.
+        print([
+          L('CLIPBOARD REFUSED. THE MESSAGE:', 'warn'),
+          ...text.split('\n').map((line) => L(line, 'dim')),
+        ]);
+      }
     }
   }
 

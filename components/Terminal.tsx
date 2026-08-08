@@ -51,12 +51,14 @@ export function useTypewriter() {
 
 function SpanView({ s, onAct }: { s: Span; onAct?: (act: string) => void }) {
   if (s.href) {
+    // sms:/tel: must navigate in place. Handing them to a new tab leaves the
+    // browser with a blank page it cannot route, and nothing opens at all.
+    const external = /^https?:/i.test(s.href);
     return (
       <a
         className={s.cls}
         href={s.href}
-        target="_blank"
-        rel="noopener noreferrer"
+        {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
         onClick={(e) => e.stopPropagation()}
       >
         {s.t}
