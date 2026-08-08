@@ -138,7 +138,7 @@ function revealLines(
     L(s.hood),
     L('COVER: NONE. BAR: BYOB.'),
     L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`),
-    L('STREET ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
+    L('ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
@@ -219,7 +219,7 @@ function instagramBlock(cfg: Settings): Line[] {
       ],
     },
     L('THE ACCOUNT IS PRIVATE. REQUEST IT AND WE LET YOU IN.'),
-    L('THE STREET IS THE ONE THING WE HOLD BACK — IT GOES UP'),
+    L('THE ADDRESS IS THE ONLY THING WE HOLD BACK — IT GOES UP'),
     L('THERE, SEEN ONLY BY PEOPLE WE APPROVED.'),
     L('NOT FOLLOWING WHEN IT DROPS MEANS NOT KNOWING WHERE.', 'warn'),
     {
