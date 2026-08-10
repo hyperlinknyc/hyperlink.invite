@@ -10,8 +10,19 @@ import './globals.css';
  *
  * Still noindex: unlisted, just not unexplained.
  */
+/* Resolved from the deployment, never hardcoded. hyperlink.nyc does NOT serve
+   this app — it points at the Studio Hyperlink site — so pinning metadataBase
+   there made og:image resolve to a 404 and the share card silently vanished,
+   which is the exact failure the card exists to prevent. */
+const SITE =
+  process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000';
+
 export const metadata: Metadata = {
-  metadataBase: new URL('https://hyperlink.nyc'),
+  metadataBase: new URL(SITE),
   title: 'HYPERLINK — you’re invited',
   description:
     'An invite-only party in East Williamsburg. Someone used their one invitation on you. Tap to open it.',
