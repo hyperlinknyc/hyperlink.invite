@@ -1,3 +1,5 @@
+import { DEFAULTS } from './defaults';
+
 // ── SMS delivery ─────────────────────────────────────────────────────
 // Two modes, chosen by whether Twilio credentials are present:
 //
@@ -43,18 +45,62 @@ export function buildInviteMessage(opts: {
   passphrase?: string;
   /** True for a seed code you issue yourself, false for a guest's invite. */
   fromHost?: boolean;
+  /** Live settings if you have them; falls back to the seed values. */
+  hood?: string;
+  capacity?: number;
 }): string {
   const link = `${opts.origin}/?c=${opts.code}`;
-  // The recipient's name is deliberately NOT in this text. The name is the
-  // challenge that unlocks the invite, so printing it here would hand the
-  // answer to anyone the message reached by mistake or by forwarding.
+  const hood = (opts.hood ?? DEFAULTS.hood).toLowerCase();
+  const cap = opts.capacity ?? DEFAULTS.capacity;
+
+  /*
+   * The bareness here used to be the whole point — no date, no neighbourhood,
+   * nothing but a link, so that opening it was the only way to find out. That
+   * still holds for the DATE and the ADDRESS, which remain the payoff.
+   *
+   * What it cost was believability. A bare link plus an unexplained six-
+   * character code plus "don't post it" is the exact shape of a phishing text,
+   * and the terminal it opens on says UNAUTHORIZED ACCESS IS LOGGED. Enough
+   * people read that as a scam and never tap.
+   *
+   * The fix is not explanation. An earlier draft apologised for the site
+   * being theatrical, which kills the mystique to buy safety it did not need.
+   * What actually reads as a scam is GENERIC VOICE — a scam text sounds like
+   * nobody. This arrives from the sender's own number, so the job is to sound
+   * like them the whole way down: one voice, not a friend's line followed by a
+   * press release followed by a disclaimer.
+   *
+   * So it names the category once ("a party"), gives scale and neighbourhood,
+   * and stops. The date and the address are still the payoff for opening it.
+   */
   const lead = opts.passphrase
     ? [`"${opts.passphrase}"`, ``, `whoever that means to you put you on a list.`]
     : opts.fromHost
-      ? // You are throwing it, not being brought to it.
-        [`putting something together. you're on the list.`]
-      : [`i can bring one person. it's you.`];
-  return [...lead, ``, link, ``, `one code, one use. don't post it.`].join('\n');
+      ? [`i'm throwing a party. you're on the list.`]
+      : // Two sentences, not one. The full stop is the effect: statement,
+        // then the reveal. Running them together loses the beat.
+        [`i can bring one person. it's you.`];
+
+  return [
+    ...lead,
+    ``,
+    // Says "party" once, plainly — that is the whole anti-scam job. No
+    // "invite-only": the mechanism already proves it, and claiming
+    // exclusivity out loud reads try-hard. This line is the chain, which is
+    // the actual allure, and it flatters obliquely rather than directly.
+    // The host's lead already said "party" — naming it twice reads clumsy.
+    // Only the guest and passphrase leads need the category stated.
+    opts.fromHost
+      ? `${cap} people, one room in ${hood}.`
+      : `it's a party — ${cap} people, one room in ${hood}.`,
+    `everyone there was brought by someone.`,
+    ``,
+    // The code is NOT printed separately. "your code: XXXXXX" is the exact
+    // format of a 2FA scam text; the link already carries it.
+    link,
+    ``,
+    `one code, one use. this one's yours.`,
+  ].join('\n');
 }
 
 /** Deep link that opens the inviter's own SMS app, pre-addressed and pre-filled. */

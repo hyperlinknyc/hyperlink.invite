@@ -71,7 +71,8 @@ const DENIALS = [
 // Shown when the backend is unreachable — never blame the guest's code.
 const FAULT_LINES: Line[] = [
   L('CARRIER FAULT. THE NODE DID NOT ANSWER.', 'warn'),
-  L('YOUR CODE IS INTACT. WAIT AND TRANSMIT AGAIN.', 'dim'),
+  L('YOUR CODE IS INTACT.', 'dim'),
+  L('WAIT AND TRANSMIT AGAIN.', 'dim'),
 ];
 
 const BOOT: Line[] = [
@@ -89,18 +90,42 @@ const BOOT: Line[] = [
 const FULL_LINES: Line[] = [
   L('CAPACITY REACHED.', 'warn'),
   L('THE ROOM IS SEALED.'),
-  L('ALL OUTSTANDING CODES HAVE BEEN TERMINATED.'),
+  L('ALL OUTSTANDING CODES'),
+  L('HAVE BEEN TERMINATED.'),
   BLANK,
   L('// NODE CLOSED', 'dim'),
 ];
 
 const DEAD_LINES: Line[] = [
   L('KEY REJECTED.', 'warn'),
-  L('THIS CODE HAS ALREADY BEEN SPENT — OR BURNED.'),
+  L('THIS CODE HAS ALREADY BEEN SPENT'),
+  L('— OR BURNED.'),
   L('ONE CODE. ONE HOLDER. ONE CHANCE.'),
   L('THE LINK IS DEAD.', 'dim'),
   BLANK,
 ];
+
+/* 42 characters — the real capacity of the log column at 414px, measured
+   rather than guessed. Anything longer soft-wraps to column 0 and loses its
+   indent, which is what the hand-breaking exists to prevent. */
+const RULE: Line = L('─'.repeat(42), 'dim');
+
+/** The date row, omitted entirely while the date is still to be settled. */
+function dateLine(s: Settings): Line[] {
+  const parts = [s.eventDate, s.eventTime].filter((p) => p && p.trim());
+  return parts.length ? [L(parts.join(' // '))] : [];
+}
+
+/** The closing detail rows. One 65-character line before — well past the
+ *  42 the column can hold — so it is split, and the date is dropped entirely
+ *  while it is still to be settled. */
+function closingDetails(cfg: Settings): Line[] {
+  const when = [cfg.eventDate, cfg.eventTime].filter((p) => p && p.trim());
+  return [
+    ...(when.length ? [L(when.join(' // '))] : []),
+    L(`${cfg.hood} // BYOB`),
+  ];
+}
 
 function boxAround(code: string): Line[] {
   const inner = `   ${code}   `;
@@ -114,9 +139,11 @@ function boxAround(code: string): Line[] {
 const VERIFY_PROMPT: Line[] = [
   BLANK,
   L('THIS INVITATION WAS SENT TO ONE PHONE.'),
-  L('ENTER THE LAST 4 DIGITS OF YOUR PHONE NUMBER'),
-  L('TO PROVE IT REACHED THE RIGHT PERSON.'),
-  L('IF YOU CANNOT VALIDATE IT, THIS INVITE IS NOT YOURS.', 'dim'),
+  L('ENTER THE LAST 4 DIGITS OF YOUR PHONE'),
+  L('NUMBER TO PROVE IT REACHED THE RIGHT'),
+  L('PERSON.'),
+  L('IF YOU CANNOT VALIDATE IT,', 'dim'),
+  L('THIS INVITE IS NOT YOURS.', 'dim'),
   BLANK,
 ];
 
@@ -124,13 +151,15 @@ const CLAIM_NAME_PROMPT: Line[] = [
   BLANK,
   L('THIS INVITATION HAS A NAME ON IT.'),
   L('TYPE YOUR FIRST NAME TO OPEN IT.'),
-  L('WE WILL NOT TELL YOU WHOSE. YOU EITHER KNOW OR YOU DO NOT.', 'dim'),
+  L('WE WILL NOT TELL YOU WHOSE.', 'dim'),
+  L('YOU EITHER KNOW OR YOU DO NOT.', 'dim'),
   BLANK,
 ];
 
 // Marks a demo run so a sandbox pass is never mistaken for the real thing.
 const DEMO_BANNER: Line[] = [
-  L('*** SIMULATION — DEMO WORLD. NOT THE REAL GUEST LIST. ***', 'warn'),
+  L('*** SIMULATION — DEMO WORLD. ***', 'warn'),
+  L('*** NOT THE REAL GUEST LIST. ***', 'warn'),
   BLANK,
 ];
 
@@ -150,23 +179,45 @@ function revealLines(
       ? [L(`WELCOME, ${invitedName.toUpperCase()}.`), BLANK]
       : []),
     ...(demo ? DEMO_BANNER : []),
+    /* The event details are the one thing a guest actually needs to carry
+       away, and they were rendering at the same weight as the surrounding
+       machine chatter. Fenced off with rules, and the two lines nobody needs
+       to read twice dropped to `dim`, so edition, date and place are the
+       brightest lines on the screen. Colour cannot do this job here — `warn`
+       is danger only and `cta` belongs to Instagram. */
+    RULE,
     L(`${EVENT_NAME} — ${s.edition}`),
-    L(`${s.eventDate} // ${s.eventTime}`),
+    // Both halves can be blank while a date is still being settled; joining
+    // them unconditionally would render a bare " // ".
+    ...dateLine(s),
     L(s.hood),
-    L('COVER: NONE. BAR: BYOB.'),
-    L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`),
+    RULE,
+    L('COVER: NONE. BAR: BYOB.', 'dim'),
+    L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`, 'dim'),
     L('ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
     L('2. ACCEPT, AND YOU CAN BRING ONE PERSON.'),
-    L('   NAME THEM, THEN SEND IT STRAIGHT FROM YOUR PHONE.'),
+    L('   NAME THEM, THEN SEND IT'),
+    L('   STRAIGHT FROM YOUR PHONE.'),
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
-    L('3. DECLINE, AND THIS CODE DIES. PERMANENTLY.', 'warn'),
-    L('   THIS LINK WILL NEVER OPEN AGAIN — NOT FOR YOU,', 'warn'),
-    L('   NOT FOR ANYONE. YOUR SEAT GOES BACK IN THE POOL.', 'warn'),
+    // A term of entry, so it sits with the other terms rather than arriving
+    // as a surprise at the door. Body text, not warn — amber is danger only.
+    L('3. YOUR CAMERA IS SEALED AT THE DOOR.'),
+    L('   THE NIGHT IS NOT CONTENT.'),
+    L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
+    L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
+    L('   AGAIN, FOR YOU OR ANYONE.', 'warn'),
+    L('   YOUR SEAT GOES BACK IN THE POOL.', 'warn'),
     BLANK,
-    L('THE CHAIN IS THE GUEST LIST. YOU ARE HOLDING A LINK.'),
+    L('THE CHAIN IS THE GUEST LIST.'),
+    L('YOU ARE HOLDING A LINK.'),
+    // A norm, not a rule, so it sits outside the numbered block. The pair is
+    // deliberate: one line retires the job, the other retires performing for
+    // the room. Matched construction so it reads as a single statement.
+    L('NOBODY CARES WHAT YOU DO OUT THERE.'),
+    L('NOBODY CARES WHAT YOU DO IN HERE.'),
     BLANK,
     {
       spans: [
@@ -196,7 +247,8 @@ const CONFIRM_DECLINE: Line[] = [
 const DECLINED_LINES: Line[] = [
   BLANK,
   L('UNDERSTOOD.'),
-  L('CODE TERMINATED. THE CHAIN CLOSES AROUND THE GAP.'),
+  L('CODE TERMINATED.'),
+  L('THE CHAIN CLOSES AROUND THE GAP.'),
   L('FORGET THE DATE. FORGET THE NEIGHBORHOOD.'),
   L('NONE OF THIS WAS REAL.'),
   BLANK,
@@ -216,7 +268,11 @@ const DECLINED_LINES: Line[] = [
 function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
   return [
     BLANK,
-    L('COMMITMENT LOGGED.'),
+    // The one moment the terminal drops its register. Everything up to here
+    // has been withholding and formal on purpose; answering the commitment
+    // with 'COMMITMENT LOGGED.' met the warmest beat in the flow with a filing
+    // receipt. Three plain words are the payoff for the cold gate.
+    L('YOU ARE IN.'),
     BLANK,
     // Whoever invited them already typed a first name. Asking for the whole
     // name again wastes the one fact we have — and echoing it back doubles
@@ -228,7 +284,8 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
         ]
       : [
           L('WHAT DO WE CALL YOU?'),
-          L('THIS IS THE NAME ON THE DOOR. NOTHING ELSE IS.', 'dim'),
+          L('THIS IS THE NAME ON THE DOOR.', 'dim'),
+          L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
     L(`(YOU WILL ALSO NEED TO FOLLOW ${cfg.igHandle} — WE WILL`, 'dim'),
@@ -248,10 +305,13 @@ function instagramBlock(cfg: Settings): Line[] {
         { t: '. MANDATORY.' },
       ],
     },
-    L('THE ACCOUNT IS PRIVATE. REQUEST IT AND WE LET YOU IN.'),
-    L('THE ADDRESS IS THE ONLY THING WE HOLD BACK — IT GOES UP'),
-    L('THERE, SEEN ONLY BY PEOPLE WE APPROVED.'),
-    L('NOT FOLLOWING WHEN IT DROPS MEANS NOT KNOWING WHERE.', 'warn'),
+    L('THE ACCOUNT IS PRIVATE.'),
+    L('REQUEST IT AND WE LET YOU IN.'),
+    L('THE ADDRESS IS THE ONLY THING WE'),
+    L('HOLD BACK. IT GOES UP THERE, SEEN'),
+    L('ONLY BY PEOPLE WE APPROVED.'),
+    L('NOT FOLLOWING WHEN IT DROPS', 'warn'),
+    L('MEANS NOT KNOWING WHERE.', 'warn'),
     {
       spans: [{ t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
     },
@@ -289,10 +349,17 @@ function payoffLines(s: Session, restored = false): Line[] {
       ...head,
       ...seat,
       L('YOU TOOK THE FINAL SEAT.', 'warn'),
-      L('THE CHAIN ENDS WITH YOU. NO FURTHER INVITATIONS EXIST.'),
+      L('THE CHAIN ENDS WITH YOU.'),
+      L('NO FURTHER INVITATIONS EXIST.'),
+      BLANK,
+      // Repeated on the screen guests come back to. Before the Instagram
+      // block, never after it — that link is the one thing here that leaves
+      // the page.
+      L('CAMERA SEALED AT THE DOOR.'),
+      L('THE NIGHT IS NOT CONTENT.'),
       ...instagramBlock(cfg),
       BLANK,
-      L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
+      ...closingDetails(cfg),
       ...(cfg.hasCalendar
       ? [
               {
@@ -312,9 +379,11 @@ function payoffLines(s: Session, restored = false): Line[] {
     BLANK,
     L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
-    L('WHO ARE YOU BRINGING? A FIRST NAME IS ENOUGH.'),
-    L('YOU PICK THEM FROM YOUR OWN CONTACTS ON THE NEXT TAP —', 'dim'),
-    L('THERE IS NO NUMBER TO LOOK UP.', 'dim'),
+    L('WHO ARE YOU BRINGING?'),
+    L('A FIRST NAME IS ENOUGH.'),
+    L('YOU PICK THEM FROM YOUR OWN CONTACTS', 'dim'),
+    L('ON THE NEXT TAP. THERE IS NO NUMBER', 'dim'),
+    L('TO LOOK UP.', 'dim'),
     BLANK,
   ];
 }
@@ -326,8 +395,9 @@ function sentLines(invitedName: string): Line[] {
   return [
     BLANK,
     L(`INVITATION PREPARED FOR ${invitedName.toUpperCase()}.`),
-    L('IT SENDS FROM YOUR OWN PHONE, SO IT LANDS FROM A NUMBER', 'dim'),
-    L('THEY ALREADY KNOW. PICK THEM ON THE NEXT SCREEN.', 'dim'),
+    L('IT SENDS FROM YOUR OWN PHONE, SO IT', 'dim'),
+    L('LANDS FROM A NUMBER THEY ALREADY KNOW.', 'dim'),
+    L('PICK THEM ON THE NEXT SCREEN.', 'dim'),
     BLANK,
   ];
 }
@@ -340,10 +410,16 @@ function sentLines(invitedName: string): Line[] {
 function afterSendLines(cfg: Settings): Line[] {
   return [
     BLANK,
-    L('THAT WAS YOUR ONE INVITATION. THERE ARE NO MORE.'),
+    L('THAT WAS YOUR ONE INVITATION.'),
+    L('THERE ARE NO MORE.'),
+    BLANK,
+    // Same reminder on the other closing path. A guest reaches exactly one of
+    // these two, so it still shows once each.
+    L('CAMERA SEALED AT THE DOOR.'),
+    L('THE NIGHT IS NOT CONTENT.'),
     ...instagramBlock(cfg),
     BLANK,
-    L(`${cfg.eventDate} // ${cfg.eventTime} // ${cfg.hood} // BYOB`),
+    ...closingDetails(cfg),
     ...(cfg.hasCalendar
       ? [
           {
@@ -541,7 +617,8 @@ export default function Home() {
     print([L(`> ${digits || value}`, 'dim')]);
     if (digits.length !== 4) {
       await typeLines([
-        L('FOUR DIGITS — THE LAST 4 OF YOUR PHONE NUMBER.', 'warn'),
+        L('FOUR DIGITS — THE LAST 4 OF', 'warn'),
+        L('YOUR PHONE NUMBER.', 'warn'),
       ]);
       return;
     }
@@ -668,7 +745,10 @@ export default function Home() {
       setPhase('end');
       return;
     }
-    await typeLines([L('TYPE DECLINE TO CONFIRM, OR ACCEPT TO RECONSIDER.')]);
+    await typeLines([
+      L('TYPE DECLINE TO CONFIRM,'),
+      L('OR ACCEPT TO RECONSIDER.'),
+    ]);
   }
 
   function saveSession() {
@@ -756,7 +836,10 @@ export default function Home() {
       return;
     }
     if (name.length > 60) {
-      await typeLines([L('SHORTER. THIS IS A DOOR LIST, NOT A BIOGRAPHY.', 'warn')]);
+      await typeLines([
+        L('SHORTER. THIS IS A DOOR LIST,', 'warn'),
+        L('NOT A BIOGRAPHY.', 'warn'),
+      ]);
       return;
     }
     await typeLines([L('TRANSMITTING ...', 'dim')]);
@@ -785,7 +868,8 @@ export default function Home() {
       setPhase(session.childCode ? 'invitee' : 'end');
     } else if (res?.result === 'full') {
       await typeLines([
-        L('THE LAST SEAT WAS TAKEN WHILE YOU HESITATED.', 'warn'),
+        L('THE LAST SEAT WAS TAKEN', 'warn'),
+        L('WHILE YOU HESITATED.', 'warn'),
         ...FULL_LINES,
       ]);
       setPhase('end');
