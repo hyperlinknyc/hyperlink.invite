@@ -331,7 +331,7 @@ function instagramBlock(cfg: Settings): Line[] {
 }
 
 function payoffLines(s: Session, restored = false, animateChain = false): Line[] {
-  // A restored session replays the copy captured at accept time.
+  // A restored session carries the latest copy the node gave it.
   const cfg = s.settings ?? FALLBACK;
   const head: Line[] = [
     ...(s.demo ? DEMO_BANNER : []),
@@ -542,7 +542,12 @@ export default function Home() {
         saved = JSON.parse(localStorage.getItem('hl_session') ?? 'null');
       } catch {}
       if (saved?.code) {
+        // Replay with the event details as they stand now — the date and the
+        // neighbourhood are edited from admin after people accept. The copy
+        // saved at accept time only stands in when the node did not answer.
+        if (status?.settings) saved.settings = status.settings;
         sessionRef.current = saved;
+        saveSession();
         if (saved.inviteSent) {
           // Already spent their invitation — replay the closing screen.
           const animate = claimChainReveal();
