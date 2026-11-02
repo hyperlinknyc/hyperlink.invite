@@ -551,6 +551,40 @@ export async function purgeDemo(): Promise<number> {
   return rows.length;
 }
 
+/** What the admin must type, exactly, for the server to wipe the live party. */
+export const PURGE_LIVE_PHRASE = 'PURGE LIVE';
+
+/**
+ * Admin: erase the live party — every code, guest and chain — and start the
+ * counters over. Settings, the demo world and the rate-limit log are untouched.
+ *
+ * One statement, so the guest list and the seat counter cannot disagree if
+ * something dies halfway: either every live code is gone and the room is empty,
+ * or nothing changed. A guest mid-accept finds their code gone and is told it
+ * is dead, never half-admitted.
+ *
+ * Unlike a removal, positions restart: nothing survives, so none can collide.
+ * Every chain colour is freed with its chain.
+ */
+export async function purgeLive(): Promise<{ codes: number; guests: number }> {
+  const rows = await q(
+    `WITH del AS (
+       DELETE FROM codes WHERE world = $1 RETURNING status
+     ),
+     reset AS (
+       UPDATE event_state SET accepted_count = 0, next_position = 0
+       WHERE id = $1 RETURNING id
+     )
+     SELECT (SELECT count(*) FROM del) AS codes,
+            (SELECT count(*) FROM del WHERE status = 'accepted') AS guests`,
+    [WORLD_LIVE]
+  );
+  return {
+    codes: Number(rows[0]?.codes ?? 0),
+    guests: Number(rows[0]?.guests ?? 0),
+  };
+}
+
 export type CodeRow = {
   id: number;
   code: string;
