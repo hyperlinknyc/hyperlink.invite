@@ -5,14 +5,13 @@ import type { ChainColor } from '@/lib/config';
 import { colorPath, hexToOklch, hexToRgb, oklabDistance, oklchToRgb } from '@/lib/oklch';
 
 /** How long the mark takes to travel from the brand green to a chain colour. */
-export const CHAIN_TRANSITION_MS = 5000;
+export const CHAIN_TRANSITION_MS = 1600;
 
 /** How long it stays brand green once it appears, so the guest sees it green
- *  first. Counted in time the page is actually on screen. The Instagram link
- *  prints only after the colour settles, so this plus CHAIN_TRANSITION_MS is
- *  how long a guest waits for it: ten seconds read as dead air, and three was
- *  still slow. */
-export const CHAIN_HOLD_MS = 1000;
+ *  first. Counted in time the page is actually on screen. This plus
+ *  CHAIN_TRANSITION_MS is the whole reveal, 2s, and it is also how long a guest
+ *  waits for the Instagram link, which prints only after the colour settles. */
+export const CHAIN_HOLD_MS = 400;
 
 /** Halo strength while the mark is still green. It is not a link, and bright
  *  green glow beside a green link read as two things to tap, so it waits at a
@@ -40,8 +39,8 @@ function paint(el: SVGSVGElement, [r, g, b]: number[], glow: number, bright = 1)
     .join(' ');
 }
 
-// Sine in-out: it never rushes. A cubic spends most of a long transition at
-// the ends and then changes the colour in a sudden middle second.
+// Sine in-out: it never rushes. A cubic spends most of the transition at the
+// ends and then changes the colour in a sudden middle moment.
 const easeInOut = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
 
 /**
