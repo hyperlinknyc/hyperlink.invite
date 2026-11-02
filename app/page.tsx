@@ -9,7 +9,9 @@ import {
   Screen,
   useTypewriter,
 } from '@/components/Terminal';
+import { CHAIN_TRANSITION_MS } from '@/components/Logo';
 import { DEFAULTS } from '@/lib/defaults';
+import type { ChainColor } from '@/lib/config';
 
 const EVENT_NAME = 'HYPERLINK';
 
@@ -59,7 +61,14 @@ type Session = {
   // Set once their one invitation has been addressed to someone.
   inviteSent?: boolean;
   invitedName?: string;
+  /** Their chain's colour, as the accept response returned it. */
+  chain?: ChainColor | null;
+  /** Set when the sign-off first prints, so the mark only travels once. */
+  chainRevealed?: boolean;
 };
+
+const reducedMotion = () =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 
 const DENIALS = [
@@ -204,8 +213,11 @@ function revealLines(
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     // A term of entry, so it sits with the other terms rather than arriving
     // as a surprise at the door. Body text, not warn — amber is danger only.
-    L('3. YOUR CAMERA IS SEALED AT THE DOOR.'),
-    L('   THE NIGHT IS NOT CONTENT.'),
+    // The handle is the admin setting, like every other mention of it.
+    L('3. PHONE CAMERAS SEALED AT THE DOOR.'),
+    L('   WE SHOOT ON DISPOSABLES — STORIES ONLY,'),
+    L(`   ${s.igHandle}, A FEW DAYS AFTER.`),
+    L('   NOT INTO IT? LET THE DOOR KNOW.'),
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
     L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
     L('   AGAIN, FOR YOU OR ANYONE.', 'warn'),
@@ -318,7 +330,7 @@ function instagramBlock(cfg: Settings): Line[] {
   ];
 }
 
-function payoffLines(s: Session, restored = false): Line[] {
+function payoffLines(s: Session, restored = false, animateChain = false): Line[] {
   // A restored session replays the copy captured at accept time.
   const cfg = s.settings ?? FALLBACK;
   const head: Line[] = [
@@ -355,8 +367,8 @@ function payoffLines(s: Session, restored = false): Line[] {
       // Repeated on the screen guests come back to. Before the Instagram
       // block, never after it — that link is the one thing here that leaves
       // the page.
-      L('CAMERA SEALED AT THE DOOR.'),
-      L('THE NIGHT IS NOT CONTENT.'),
+      L('PHONE CAMERAS SEALED AT THE DOOR.'),
+      L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
       ...instagramBlock(cfg),
       BLANK,
       ...closingDetails(cfg),
@@ -367,7 +379,7 @@ function payoffLines(s: Session, restored = false): Line[] {
               } as Line,
           ]
         : []),
-      ...SIGN_OFF,
+      ...signOff(s.chain, animateChain),
     ];
   }
 
@@ -407,7 +419,11 @@ function sentLines(invitedName: string): Line[] {
  * so the screen carries one instruction at a time — and so the Instagram
  * link, the only thing here that leaves the page, comes last.
  */
-function afterSendLines(cfg: Settings): Line[] {
+function afterSendLines(
+  cfg: Settings,
+  chain?: ChainColor | null,
+  animateChain = false
+): Line[] {
   return [
     BLANK,
     L('THAT WAS YOUR ONE INVITATION.'),
@@ -415,8 +431,8 @@ function afterSendLines(cfg: Settings): Line[] {
     BLANK,
     // Same reminder on the other closing path. A guest reaches exactly one of
     // these two, so it still shows once each.
-    L('CAMERA SEALED AT THE DOOR.'),
-    L('THE NIGHT IS NOT CONTENT.'),
+    L('PHONE CAMERAS SEALED AT THE DOOR.'),
+    L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
     ...instagramBlock(cfg),
     BLANK,
     ...closingDetails(cfg),
@@ -427,19 +443,33 @@ function afterSendLines(cfg: Settings): Line[] {
           } as Line,
         ]
       : []),
-    ...SIGN_OFF,
+    ...signOff(chain, animateChain),
   ];
 }
 
-/** The last thing on the screen, printed after the send action. */
-const SIGN_OFF: Line[] = [
-  BLANK,
-  L('SEE YOU IN THE DARK.'),
-  L('// EVERY LINK LEADS TO ANOTHER', 'dim'),
-  BLANK,
-  LOGO,
-  BLANK,
-];
+/**
+ * The last thing on the screen. With a chain, the mark turns to its colour
+ * once everything above has printed, then the chain's name types beneath it —
+ * so colour is never the only signal. Without one (a session saved before
+ * chains had colours) it stays the brand green, as before.
+ */
+function signOff(chain?: ChainColor | null, animate = false): Line[] {
+  const head: Line[] = [
+    BLANK,
+    L('SEE YOU IN THE DARK.'),
+    L('// EVERY LINK LEADS TO ANOTHER', 'dim'),
+    BLANK,
+  ];
+  if (!chain) return [...head, LOGO, BLANK];
+  return [
+    ...head,
+    { ...LOGO, chain, animate },
+    // Hold until the colour settles, plus a beat, before naming it.
+    ...(animate ? [{ spans: [], pause: CHAIN_TRANSITION_MS + 250 }] : []),
+    { spans: [{ t: `// ${chain.name} CHAIN` }], cls: 'chain-label', color: chain.hex },
+    BLANK,
+  ];
+}
 
 export default function Home() {
   const { done, current, busy, typeLines, print, skip } = useTypewriter();
@@ -475,6 +505,33 @@ export default function Home() {
     bootedRef.current = true;
     (async () => {
       const statusP = fetch('/api/status').then((r) => r.json()).catch(() => null);
+
+      // Dev-only: /?chainPreview=BLUE plays the closing screen in that chain's
+      // colour without spending a code. NODE_ENV is inlined at build time, so
+      // a production build strips this branch and the palette import with it.
+      if (process.env.NODE_ENV !== 'production') {
+        const want = new URLSearchParams(window.location.search).get('chainPreview');
+        if (want) {
+          const status = await statusP;
+          if (status?.settings) settingsRef.current = status.settings;
+          const { CHAIN_PALETTE, chainColor } = await import('@/lib/config');
+          const chain = chainColor(want.toUpperCase());
+          await typeLines([
+            L('*** CHAIN PREVIEW — DEV ONLY. ***', 'warn'),
+            L('*** NO CODE WAS SPENT. ***', 'warn'),
+            ...(chain
+              ? afterSendLines(settingsRef.current, chain, !reducedMotion())
+              : [
+                  BLANK,
+                  L(`NO CHAIN CALLED ${want.toUpperCase()}. TRY:`),
+                  ...CHAIN_PALETTE.map((c) => L(`  /?chainPreview=${c.name}`, 'dim')),
+                ]),
+          ]);
+          setPhase('end');
+          return;
+        }
+      }
+
       await typeLines(BOOT);
       const status = await statusP;
       if (status?.settings) settingsRef.current = status.settings;
@@ -488,20 +545,23 @@ export default function Home() {
         sessionRef.current = saved;
         if (saved.inviteSent) {
           // Already spent their invitation — replay the closing screen.
+          const animate = claimChainReveal();
           await typeLines([
             ...(saved.demo ? DEMO_BANNER : []),
             L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
             BLANK,
             L(`YOU ARE ALREADY IN THE CHAIN, ${saved.name}.`),
             ...sentLines(saved.invitedName ?? 'YOUR GUEST'),
-            ...afterSendLines(saved.settings ?? FALLBACK),
+            ...afterSendLines(saved.settings ?? FALLBACK, saved.chain, animate),
           ]);
           setPhase('end');
           return;
         }
         // Accepted but never named anyone — send them back to that prompt.
-        await typeLines(payoffLines(saved, true));
-        setPhase('invitee');
+        // The final seat has nobody to name; their screen is the sign-off.
+        const animate = saved.childCode ? false : claimChainReveal();
+        await typeLines(payoffLines(saved, true, animate));
+        setPhase(saved.childCode ? 'invitee' : 'end');
         return;
       }
 
@@ -760,6 +820,21 @@ export default function Home() {
     } catch {}
   }
 
+  /**
+   * Call as the sign-off is about to print. Returns whether the mark should
+   * travel to the chain colour, and records that it has, so the transition
+   * plays once per guest — a return visit shows the settled colour. Saved
+   * before it plays, so leaving mid-transition still counts as seen.
+   */
+  function claimChainReveal(): boolean {
+    const s = sessionRef.current;
+    if (!s?.chain) return false;
+    const animate = !s.chainRevealed && !reducedMotion();
+    s.chainRevealed = true;
+    saveSession();
+    return animate;
+  }
+
   // ── naming the one person you get to bring ─────────────────────
   /**
    * No phone number is asked for here on purpose. Nothing on the web can read
@@ -859,10 +934,14 @@ export default function Home() {
         childCode: res.childCode,
         demo: !!res.demo,
         settings: settingsRef.current,
+        chain: res.chain ?? null,
       };
       sessionRef.current = session;
+      // The final seat reaches the sign-off right here; everyone else gets
+      // it after sending their invitation.
+      const animate = session.childCode ? false : claimChainReveal();
       saveSession();
-      await typeLines(payoffLines(session));
+      await typeLines(payoffLines(session, false, animate));
       // The final guest gets no child code — payoffLines already closes them
       // out, so there is nobody for them to name.
       setPhase(session.childCode ? 'invitee' : 'end');
@@ -951,7 +1030,10 @@ export default function Home() {
   async function revealAfterSend() {
     if (revealedRef.current) return;
     revealedRef.current = true;
-    await typeLines(afterSendLines(settingsRef.current));
+    const animate = claimChainReveal();
+    await typeLines(
+      afterSendLines(settingsRef.current, sessionRef.current?.chain, animate)
+    );
   }
 
   /** Clipboard, with the raw text printed on screen if that is refused too. */

@@ -12,7 +12,13 @@ const n = Math.min(Math.max(parseInt(process.argv[2] ?? '6', 10) || 6, 1), 20);
   const target = process.env.DATABASE_URL ? 'NEON (production)' : 'local PGlite (.data/)';
   console.log(`minting ${n} seed codes against ${target}\n`);
   for (let i = 0; i < n; i++) {
-    console.log(`  SEED ${i + 1}: ${await mintSeedCode()}`);
+    const res = await mintSeedCode();
+    if (!res.ok) {
+      // Never doubles up a colour on its own. Pick one deliberately in /admin.
+      console.log(`  STOPPED: every chain colour is in use (${res.reason}).`);
+      break;
+    }
+    console.log(`  SEED ${i + 1}: ${res.code}  ${res.color}`);
   }
   console.log('\ndone.');
   process.exit(0);

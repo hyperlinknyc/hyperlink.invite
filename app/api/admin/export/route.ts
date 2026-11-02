@@ -14,8 +14,9 @@ export async function GET(req: Request) {
   // Live world only — a demo run must never end up on the door list.
   const codes = await allCodes(WORLD_LIVE);
   // Sorted so the door list reads top-to-bottom in arrival order.
+  // chain_color sits beside the name: it is the wristband the door hands out.
   const header =
-    'position,name,phone,code,status,sms_status,depth,issuer_id,created_at,decided_at';
+    'position,name,chain_color,phone,code,status,sms_status,depth,issuer_id,created_at,decided_at';
   const ordered = [...codes].sort((a, b) => {
     // Accepted guests first, in arrival order; everything else after.
     if (a.position != null && b.position != null) return a.position - b.position;
@@ -27,6 +28,7 @@ export async function GET(req: Request) {
     [
       c.position,
       c.guest_name,
+      c.chain_color,
       c.invitee_phone,
       c.code,
       c.status,

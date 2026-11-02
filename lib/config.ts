@@ -17,3 +17,35 @@ export const CODE_CHARSET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 // day have a ~1-in-4,000 chance of touching any live code.
 export const RATE_LIMIT_MAX = 40;
 export const RATE_LIMIT_WINDOW_MIN = 10;
+
+// ── Chain colours ────────────────────────────────────────────────────
+// Every seed starts a chain with its own colour and everyone it brings in
+// inherits it. The colour is the wristband at the door, so each name must
+// match a glow stick or band you can actually buy.
+//
+// The database stores the NAME. `hex` and `glow` are only how the terminal
+// draws it, so tune those freely — but renaming or removing an entry strands
+// any chain that already carries the old name.
+//
+// No amber, yellow or orange: amber is reserved for peak moments. The hues
+// are muted to sit in the grey-green terminal, then lifted until each reads
+// on near-black — blue, violet and pink needed it most. `glow` scales the
+// logo's halo; 1 is the brand green's.
+//
+// Kept out of every production client bundle: a chain's colour reaches the
+// browser only in the response to a successful accept. (The dev-only
+// ?chainPreview imports it, inside a branch the production build strips.)
+export type ChainColor = { name: string; hex: string; glow: number };
+
+export const CHAIN_PALETTE: readonly ChainColor[] = [
+  { name: 'GREEN', hex: '#3ee63e', glow: 1 }, // the brand green; first seed
+  { name: 'BLUE', hex: '#73b6fa', glow: 1.4 },
+  { name: 'CYAN', hex: '#5ddae0', glow: 1 },
+  { name: 'WHITE', hex: '#e9e8e2', glow: 0.85 },
+  { name: 'VIOLET', hex: '#bb9af4', glow: 1.5 },
+  { name: 'PINK', hex: '#f496bb', glow: 1.25 },
+];
+
+export function chainColor(name: string | null | undefined): ChainColor | null {
+  return CHAIN_PALETTE.find((c) => c.name === name) ?? null;
+}

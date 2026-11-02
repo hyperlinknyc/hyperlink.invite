@@ -239,7 +239,19 @@ a.cta {
   .logo { animation: none; }
 }
 
+/* The chain's name beneath the mark, in the chain's colour (set inline).
+   Centred under the logo; no glow of its own — the mark carries that. */
+.chain-label {
+  text-align: center;
+}
+
 /* admin table-ish rows reuse .line; keep everything text */
 .admin-block {
   margin: 0.75em 0;
+}
+
+/* A chain's colour in admin, passed as --chip. A class rather than an inline
+   colour so .act's press state still inverts it. */
+.chip {
+  color: var(--chip, inherit);
 }
