@@ -57,7 +57,13 @@ and who invited them — sort by `position` and that's your door list.
   (child code) can be `[KILL]`ed to stop their branch.
 - **Rate-limit lockout** (someone hammered codes from a shared IP, e.g.
   venue wifi): it clears itself after 10 minutes of quiet.
-- **Nuclear reset** (before the party only!) — wipes every code and email:
+- **Start the live party over** (before the party only!) — `/admin` →
+  bottom of the page → `[EXPORT CSV FIRST]`, then `[PURGE LIVE WORLD]` and
+  type `PURGE LIVE` when asked. It erases every live code, guest and chain
+  and puts the seat count back to zero; event settings and the demo world
+  stay. There is no undo, and no credentials to pull.
+- **Nuclear reset** (before the party only!) — wipes every code and email,
+  demo world included:
 
   ```bash
   vercel env pull .env.production.local --environment=production

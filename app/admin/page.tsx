@@ -422,6 +422,43 @@ export default function Admin() {
     refresh();
   }
 
+  /**
+   * Erase the real party. The prompt says how many people that is and makes
+   * the admin type the phrase, and the server checks the same phrase — this
+   * is the one button on the page that cannot be undone and has no stand-in.
+   */
+  async function purgeLive() {
+    const guests = state?.counts.accepted ?? 0;
+    const codes = state?.codes.length ?? 0;
+    const typed = window.prompt(
+      `ERASE THE LIVE PARTY?\n\n` +
+        `This permanently deletes ${guests} accepted guest${guests === 1 ? '' : 's'} ` +
+        `and ${codes} code${codes === 1 ? '' : 's'}: the real guest list, every chain, ` +
+        `and the seat count. Event settings and the demo world are kept. ` +
+        `There is no undo.\n\n` +
+        `Use [EXPORT CSV] first if you need the door list.\n\n` +
+        `Type PURGE LIVE to continue.`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== 'PURGE LIVE') {
+      setMsg('NOT PURGED: THAT WAS NOT "PURGE LIVE". NOTHING WAS DELETED.');
+      return;
+    }
+    const res = await post('/api/admin/live-purge', { confirm: 'PURGE LIVE' });
+    if (res.ok) {
+      setMsg(
+        `LIVE WORLD PURGED — ${res.removed} CODE${res.removed === 1 ? '' : 'S'} AND ` +
+          `${res.guests} GUEST${res.guests === 1 ? '' : 'S'} REMOVED. ` +
+          `THE ROOM IS EMPTY. MINT NEW SEEDS.`
+      );
+      setPick(null);
+      setFolded(new Set());
+    } else {
+      setMsg(`NOT PURGED${res.error ? `: ${res.error}` : ''}`);
+    }
+    refresh();
+  }
+
   async function saveSettings() {
     if (!draft) return;
     const res = await post('/api/admin/settings', draft);
@@ -928,6 +965,24 @@ export default function Admin() {
           ) : (
             <div className="line dim">NOBODY HAS ACCEPTED YET.</div>
           )}
+        </div>
+
+        {/* ── DANGER ─────────────────────────────────────────────── */}
+        <div className="admin-block">
+          <div className="line warn">── DANGER ZONE ──────────────────────</div>
+          <div className="line dim">
+            Erases the live party: every code, guest and chain, and the seat count
+            back to zero. Event settings and the demo world stay. This cannot be
+            undone, so export the door list first.
+          </div>
+          <div className="line">
+            <a className="act" href="/api/admin/export" style={{ textDecoration: 'none' }}>
+              [EXPORT CSV FIRST]
+            </a>{' '}
+            <span className="act warn" onClick={purgeLive}>
+              [PURGE LIVE WORLD]
+            </span>
+          </div>
         </div>
 
         <div className="line dim">AUTO-REFRESH 15S</div>
