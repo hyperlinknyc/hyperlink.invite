@@ -7,10 +7,10 @@ import { hexToOklch, hexToRgb, mixOklch, oklabDistance, oklchToRgb } from '@/lib
 /** How long the mark takes to travel from the brand green to a chain colour. */
 export const CHAIN_TRANSITION_MS = 2500;
 
-/** How long it stays brand green once it appears. The sign-off prints in a few
- *  seconds but takes far longer to read, and a colour change nobody is looking
- *  at is a colour change that did not happen. */
-export const CHAIN_HOLD_MS = 10000;
+/** How long it stays brand green once it appears, so the guest sees it green
+ *  first. Counted in time the page is actually on screen. Ten seconds was
+ *  tried and read as dead air for a mark that is only green. */
+export const CHAIN_HOLD_MS = 3000;
 
 // The halo from .logo in globals.css as [blur px, alpha]. A chain's `glow`
 // scales the alphas, so the darker hues can be lifted to read on black.
