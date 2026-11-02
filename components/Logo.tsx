@@ -5,12 +5,18 @@ import type { ChainColor } from '@/lib/config';
 import { colorPath, hexToOklch, hexToRgb, oklabDistance, oklchToRgb } from '@/lib/oklch';
 
 /** How long the mark takes to travel from the brand green to a chain colour. */
-export const CHAIN_TRANSITION_MS = 5000;
+export const CHAIN_TRANSITION_MS = 1600;
 
 /** How long it stays brand green once it appears, so the guest sees it green
- *  first. Counted in time the page is actually on screen. Ten seconds was
- *  tried and read as dead air for a mark that is only green. */
-export const CHAIN_HOLD_MS = 3000;
+ *  first. Counted in time the page is actually on screen. This plus
+ *  CHAIN_TRANSITION_MS is the whole reveal, 2s, and it is also how long a guest
+ *  waits for the Instagram link, which prints only after the colour settles. */
+export const CHAIN_HOLD_MS = 400;
+
+/** Halo strength while the mark is still green. It is not a link, and bright
+ *  green glow beside a green link read as two things to tap, so it waits at a
+ *  low glow and powers up to the chain's own as the colour changes. */
+const SUBDUED_GLOW = 0.4;
 
 // The halo from .logo in globals.css as [blur px, alpha]. A chain's `glow`
 // scales the alphas, so the darker hues can be lifted to read on black.
@@ -33,8 +39,8 @@ function paint(el: SVGSVGElement, [r, g, b]: number[], glow: number, bright = 1)
     .join(' ');
 }
 
-// Sine in-out: it never rushes. A cubic spends most of a long transition at
-// the ends and then changes the colour in a sudden middle second.
+// Sine in-out: it never rushes. A cubic spends most of the transition at the
+// ends and then changes the colour in a sudden middle moment.
 const easeInOut = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
 
 /**
@@ -93,6 +99,9 @@ export function Logo({
     // brightness pulse over the same span instead.
     const pulse = oklabDistance(from, to) < 0.03;
     const path = colorPath(from, to);
+    // Before the first frame, so the mark never shows its full glow for an
+    // instant and then drops.
+    paint(el, hexToRgb(brand), SUBDUED_GLOW);
 
     // Time only counts while the page is on screen. Frames stop in a hidden
     // tab, so the first one back reports a huge gap; capping each step keeps a
@@ -104,18 +113,19 @@ export function Logo({
       elapsed += last < 0 ? 0 : Math.min(now - last, 100);
       last = now;
       const t = Math.min(1, Math.max(0, elapsed - hold) / CHAIN_TRANSITION_MS);
-      // Still holding: leave the brand green exactly as the stylesheet draws it.
+      // Still holding: the subdued green painted above stays as it is.
       if (t === 0) {
         raf = requestAnimationFrame(frame);
         return;
       }
+      const k = easeInOut(t);
+      const glow = SUBDUED_GLOW + (chain.glow - SUBDUED_GLOW) * k;
       if (pulse) {
         // Rises and falls with zero slope at both ends: eased in and out.
         const swell = (1 - Math.cos(2 * Math.PI * t)) / 2;
-        paint(el, finalRgb, chain.glow * (1 + 0.9 * swell), 1 + 0.35 * swell);
+        paint(el, finalRgb, glow * (1 + 0.9 * swell), 1 + 0.35 * swell);
       } else {
-        const k = easeInOut(t);
-        paint(el, oklchToRgb(path(k)), 1 + (chain.glow - 1) * k);
+        paint(el, oklchToRgb(path(k)), glow);
       }
       if (t < 1) raf = requestAnimationFrame(frame);
       else settle();
