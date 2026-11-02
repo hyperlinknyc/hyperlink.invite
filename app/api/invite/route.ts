@@ -10,6 +10,7 @@ import { normalizePhone, maskPhone } from '@/lib/phone';
 import { buildInviteMessage, smsHandoffLink, smsMode, sendSms } from '@/lib/sms';
 import { clientIp, overLimit } from '@/lib/rateLimit';
 import { WORLD_DEMO } from '@/lib/defaults';
+import { getSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
 
   const origin = new URL(req.url).origin;
   const fromHost = info.depth === 0;
+  // The neighbourhood and headcount set in admin, not the first-run seed values.
+  const { hood, capacity } = await getSettings();
 
   // ── share-sheet path ────────────────────────────────────────────────
   if (body.name !== undefined) {
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
 
     // The name never goes into the message body — it is the challenge that
     // opens the invite. It comes back only so the UI can say who it is for.
-    const message = buildInviteMessage({ code, origin, fromHost });
+    const message = buildInviteMessage({ code, origin, fromHost, hood, capacity });
     return NextResponse.json({
       result: 'named',
       alreadyNamed: claim.alreadyNamed,
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
   const claim = await claimInvite(code, phone.e164, '');
   if (!claim.ok) return NextResponse.json({ result: 'invalid' });
 
-  const message = buildInviteMessage({ code, origin, fromHost });
+  const message = buildInviteMessage({ code, origin, fromHost, hood, capacity });
 
   if (claim.alreadySent) {
     return NextResponse.json({
