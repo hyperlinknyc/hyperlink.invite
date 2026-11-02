@@ -7,6 +7,11 @@ import { hexToOklch, hexToRgb, mixOklch, oklabDistance, oklchToRgb } from '@/lib
 /** How long the mark takes to travel from the brand green to a chain colour. */
 export const CHAIN_TRANSITION_MS = 2500;
 
+/** How long it stays brand green once it appears. The sign-off prints in a few
+ *  seconds but takes far longer to read, and a colour change nobody is looking
+ *  at is a colour change that did not happen. */
+export const CHAIN_HOLD_MS = 10000;
+
 // The halo from .logo in globals.css as [blur px, alpha]. A chain's `glow`
 // scales the alphas, so the darker hues can be lifted to read on black.
 const HALO = [
@@ -38,15 +43,28 @@ const easeInOut = (t: number) =>
  * screen, weighs nothing, and takes its colour and glow from CSS. The
  * horizontal banding recreates the scanline texture of the original artwork.
  *
- * Given a chain, it turns from the brand green to that chain's colour — once.
- * `animate` false (reduced motion, or a guest coming back to a screen they
- * have already seen) starts it at the final colour with no travel.
+ * Given a chain, it holds the brand green for `hold`, then turns to that
+ * chain's colour — once. `animate` false (reduced motion, or a guest coming
+ * back to a screen they have already seen) starts it at the final colour with
+ * no travel. `onSettled` fires when it reaches the final colour.
  *
  * To use the real PNG instead, drop it at public/logo.png and swap this
  * component's body for <img src="/logo.png" className="logo" alt="" />.
  */
-export function Logo({ chain, animate = false }: { chain?: ChainColor; animate?: boolean }) {
+export function Logo({
+  chain,
+  animate = false,
+  hold = CHAIN_HOLD_MS,
+  onSettled,
+}: {
+  chain?: ChainColor;
+  animate?: boolean;
+  hold?: number;
+  onSettled?: () => void;
+}) {
   const ref = useRef<SVGSVGElement>(null);
+  const settledRef = useRef(onSettled);
+  settledRef.current = onSettled;
 
   // Layout effect, so a mark that starts at its final colour is never
   // painted green for a frame first.
@@ -54,7 +72,10 @@ export function Logo({ chain, animate = false }: { chain?: ChainColor; animate?:
     const el = ref.current;
     if (!el || !chain) return;
     const finalRgb = hexToRgb(chain.hex);
-    const settle = () => paint(el, finalRgb, chain.glow);
+    const settle = () => {
+      paint(el, finalRgb, chain.glow);
+      settledRef.current?.();
+    };
     const still =
       !animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (still) {
@@ -71,12 +92,21 @@ export function Logo({ chain, animate = false }: { chain?: ChainColor; animate?:
     // brightness pulse over the same span instead.
     const pulse = oklabDistance(from, to) < 0.03;
 
-    const start = performance.now();
+    // Time only counts while the page is on screen. Frames stop in a hidden
+    // tab, so the first one back reports a huge gap; capping each step keeps a
+    // guest who tapped away to Instagram from returning to a finished change.
+    let elapsed = 0;
+    let last = -1;
     let raf = 0;
     const frame = (now: number) => {
-      // Elapsed time, not frame count, so a backgrounded tab lands on the
-      // final colour when it returns rather than resuming mid-travel.
-      const t = Math.min(1, (now - start) / CHAIN_TRANSITION_MS);
+      elapsed += last < 0 ? 0 : Math.min(now - last, 100);
+      last = now;
+      const t = Math.min(1, Math.max(0, elapsed - hold) / CHAIN_TRANSITION_MS);
+      // Still holding: leave the brand green exactly as the stylesheet draws it.
+      if (t === 0) {
+        raf = requestAnimationFrame(frame);
+        return;
+      }
       if (pulse) {
         // Rises and falls with zero slope at both ends: eased in and out.
         const swell = (1 - Math.cos(2 * Math.PI * t)) / 2;
@@ -90,7 +120,7 @@ export function Logo({ chain, animate = false }: { chain?: ChainColor; animate?:
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [chain, animate]);
+  }, [chain, animate, hold]);
 
   return (
     <div className="logo-wrap" aria-hidden="true">

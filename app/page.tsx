@@ -9,7 +9,6 @@ import {
   Screen,
   useTypewriter,
 } from '@/components/Terminal';
-import { CHAIN_TRANSITION_MS } from '@/components/Logo';
 import { DEFAULTS } from '@/lib/defaults';
 import type { ChainColor } from '@/lib/config';
 
@@ -34,6 +33,9 @@ type Settings = {
   eventDate: string;
   eventTime: string;
   hood: string;
+  /** Door terms. Optional: a session saved before they existed lacks them. */
+  cover?: string;
+  bar?: string;
   igHandle: string;
   igUrl: string;
   hasCalendar?: boolean;
@@ -44,6 +46,8 @@ const FALLBACK: Settings = {
   eventDate: DEFAULTS.eventDate,
   eventTime: DEFAULTS.eventTime,
   hood: DEFAULTS.hood,
+  cover: DEFAULTS.cover,
+  bar: DEFAULTS.bar,
   igHandle: DEFAULTS.igHandle,
   igUrl: DEFAULTS.igUrl,
 };
@@ -114,10 +118,12 @@ const DEAD_LINES: Line[] = [
   BLANK,
 ];
 
-/* 42 characters — the real capacity of the log column at 414px, measured
-   rather than guessed. Anything longer soft-wraps to column 0 and loses its
-   indent, which is what the hand-breaking exists to prevent. */
-const RULE: Line = L('─'.repeat(42), 'dim');
+/* 42 characters is the capacity of the log column at 414px, but a 360px phone
+   holds 41 and wraps the last dash onto a line of its own — two stray dashes
+   under the event block. 40 fits every width measured, and anything longer
+   soft-wraps to column 0 and loses its indent, which is what the
+   hand-breaking elsewhere on this screen exists to prevent. */
+const RULE: Line = L('─'.repeat(40), 'dim');
 
 /** The date row, omitted entirely while the date is still to be settled. */
 function dateLine(s: Settings): Line[] {
@@ -132,7 +138,7 @@ function closingDetails(cfg: Settings): Line[] {
   const when = [cfg.eventDate, cfg.eventTime].filter((p) => p && p.trim());
   return [
     ...(when.length ? [L(when.join(' // '))] : []),
-    L(`${cfg.hood} // BYOB`),
+    L(`${cfg.hood} // ${cfg.bar || FALLBACK.bar}`),
   ];
 }
 
@@ -201,7 +207,7 @@ function revealLines(
     ...dateLine(s),
     L(s.hood),
     RULE,
-    L('COVER: NONE. BAR: BYOB.', 'dim'),
+    L(`COVER: ${s.cover || FALLBACK.cover}. BAR: ${s.bar || FALLBACK.bar}.`, 'dim'),
     L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`, 'dim'),
     L('ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
     BLANK,
@@ -214,9 +220,13 @@ function revealLines(
     // A term of entry, so it sits with the other terms rather than arriving
     // as a surprise at the door. Body text, not warn — amber is danger only.
     // The handle is the admin setting, like every other mention of it.
+    // Hand-broken to stay under the column: a soft-wrapped line drops to
+    // column 0 and loses its indent, which is how "ONLY," once escaped the
+    // margin. Keep every line here at 38 characters or fewer.
     L('3. PHONE CAMERAS SEALED AT THE DOOR.'),
-    L('   WE SHOOT ON DISPOSABLES — STORIES ONLY,'),
-    L(`   ${s.igHandle}, A FEW DAYS AFTER.`),
+    L('   WE SHOOT ON DISPOSABLES —'),
+    L(`   STORIES ONLY, ${s.igHandle},`),
+    L('   A FEW DAYS AFTER.'),
     L('   NOT INTO IT? LET THE DOOR KNOW.'),
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
     L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
@@ -422,7 +432,8 @@ function sentLines(invitedName: string): Line[] {
 function afterSendLines(
   cfg: Settings,
   chain?: ChainColor | null,
-  animateChain = false
+  animateChain = false,
+  hold?: number
 ): Line[] {
   return [
     BLANK,
@@ -443,7 +454,7 @@ function afterSendLines(
           } as Line,
         ]
       : []),
-    ...signOff(chain, animateChain),
+    ...signOff(chain, animateChain, hold),
   ];
 }
 
@@ -453,7 +464,7 @@ function afterSendLines(
  * so colour is never the only signal. Without one (a session saved before
  * chains had colours) it stays the brand green, as before.
  */
-function signOff(chain?: ChainColor | null, animate = false): Line[] {
+function signOff(chain?: ChainColor | null, animate = false, hold?: number): Line[] {
   const head: Line[] = [
     BLANK,
     L('SEE YOU IN THE DARK.'),
@@ -461,11 +472,20 @@ function signOff(chain?: ChainColor | null, animate = false): Line[] {
     BLANK,
   ];
   if (!chain) return [...head, LOGO, BLANK];
+
+  // The name waits for the mark itself to finish, not for a timer: the mark's
+  // clock stops while the page is hidden, so a timer would name the colour
+  // before a guest who tapped away and came back had ever seen it change.
+  let settled = () => {};
+  const finished = animate
+    ? new Promise<void>((resolve) => {
+        settled = resolve;
+      }).then(() => new Promise<void>((r) => setTimeout(r, 250)))
+    : null;
   return [
     ...head,
-    { ...LOGO, chain, animate },
-    // Hold until the colour settles, plus a beat, before naming it.
-    ...(animate ? [{ spans: [], pause: CHAIN_TRANSITION_MS + 250 }] : []),
+    { ...LOGO, chain, animate, hold, onSettled: settled },
+    ...(finished ? [{ spans: [], wait: finished }] : []),
     { spans: [{ t: `// ${chain.name} CHAIN` }], cls: 'chain-label', color: chain.hex },
     BLANK,
   ];
@@ -520,7 +540,8 @@ export default function Home() {
             L('*** CHAIN PREVIEW — DEV ONLY. ***', 'warn'),
             L('*** NO CODE WAS SPENT. ***', 'warn'),
             ...(chain
-              ? afterSendLines(settingsRef.current, chain, !reducedMotion())
+              ? // A short hold: the preview is for looking at colours, not reading.
+                afterSendLines(settingsRef.current, chain, !reducedMotion(), 1500)
               : [
                   BLANK,
                   L(`NO CHAIN CALLED ${want.toUpperCase()}. TRY:`),

@@ -17,6 +17,8 @@ export async function GET() {
       eventDate: settings.eventDate,
       eventTime: settings.eventTime,
       hood: settings.hood,
+      cover: settings.cover,
+      bar: settings.bar,
       igHandle: settings.igHandle,
       igUrl: settings.igUrl,
       // Only offer the calendar when there is a real datetime behind it.

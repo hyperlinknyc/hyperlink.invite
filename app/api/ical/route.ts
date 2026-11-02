@@ -9,6 +9,8 @@ export async function GET() {
   const ics = buildIcs({
     edition: s.edition,
     hood: s.hood,
+    cover: s.cover,
+    bar: s.bar,
     igHandle: s.igHandle,
     startsAt: s.startsAt,
     endsAt: s.endsAt,
