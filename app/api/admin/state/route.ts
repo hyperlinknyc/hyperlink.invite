@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import { isAuthed } from '@/lib/adminAuth';
-import { allCodes, worldState } from '@/lib/invites';
+import { allCodes, takenChainColors, worldState } from '@/lib/invites';
 import { getSettings } from '@/lib/settings';
 import { WORLD_DEMO, WORLD_LIVE } from '@/lib/defaults';
+import { CHAIN_PALETTE } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   if (!isAuthed(req)) return NextResponse.json({ ok: false }, { status: 401 });
 
-  const [codes, live, demo, settings] = await Promise.all([
+  const [codes, live, demo, settings, liveTaken, demoTaken] = await Promise.all([
     allCodes(),
     worldState(WORLD_LIVE),
     worldState(WORLD_DEMO),
     getSettings(),
+    takenChainColors(WORLD_LIVE),
+    takenChainColors(WORLD_DEMO),
   ]);
 
   const liveCodes = codes.filter((c) => c.world === WORLD_LIVE);
@@ -37,6 +40,8 @@ export async function GET(req: Request) {
       code: c.code,
       // What the inviter called them, so a claim by someone else is visible.
       invitedAs: c.invited_name ?? '',
+      // Which wristband they get.
+      chain: c.chain_color ?? '',
     }));
 
   return NextResponse.json({
@@ -57,5 +62,8 @@ export async function GET(req: Request) {
     codes: liveCodes,
     demoCodes,
     guests,
+    // Served here, behind the login, so the palette never ships in a bundle.
+    palette: CHAIN_PALETTE,
+    taken: { live: liveTaken, demo: demoTaken },
   });
 }

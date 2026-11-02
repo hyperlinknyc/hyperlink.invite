@@ -1,6 +1,7 @@
 import { q } from './db';
 import { generateCode } from './codes';
 import { WORLD_DEMO, WORLD_LIVE } from './defaults';
+import { CHAIN_PALETTE, chainColor } from './config';
 
 export type CodeStatus = 'unused' | 'accepted' | 'declined' | 'dead';
 export type World = typeof WORLD_LIVE | typeof WORLD_DEMO;
@@ -183,6 +184,8 @@ export type AcceptResult =
       childCode: string | null;
       spotsRemaining: number;
       world: World;
+      /** Palette name of the chain they joined, or null if it has none. */
+      chainColor: string | null;
     }
   | { ok: false; reason: 'invalid' | 'dead' | 'full' };
 
@@ -194,7 +197,7 @@ export type AcceptResult =
  *     event_state row, and the loser re-evaluates `accepted_count < capacity`
  *     against the winner's committed value, so the room cannot oversell,
  *  3. mark the code accepted and stamp its chain position,
- *  4. mint the child code, skipped for the final seat.
+ *  4. mint the child code in the same chain colour, skipped for the final seat.
  * If any gate fails the whole statement is a no-op.
  */
 export async function acceptInvite(
@@ -226,11 +229,11 @@ export async function acceptInvite(
                position = (SELECT next_position FROM cap)
            FROM target t
            WHERE c.id = t.id AND EXISTS (SELECT 1 FROM cap)
-           RETURNING c.id, c.depth, c.world
+           RETURNING c.id, c.depth, c.world, c.chain_color
          ),
          child AS (
-           INSERT INTO codes (code, issuer_id, depth, world)
-           SELECT $3, a.id, a.depth + 1, a.world FROM accepted a
+           INSERT INTO codes (code, issuer_id, depth, world, chain_color)
+           SELECT $3, a.id, a.depth + 1, a.world, a.chain_color FROM accepted a
            WHERE (SELECT accepted_count FROM cap) < (SELECT capacity FROM cap)
            RETURNING code
          )
@@ -239,6 +242,7 @@ export async function acceptInvite(
            (SELECT accepted_count FROM cap) AS accepted,
            (SELECT capacity FROM cap) AS capacity,
            (SELECT world FROM cap) AS world,
+           (SELECT chain_color FROM accepted) AS chain_color,
            (SELECT code FROM child) AS child_code`,
         [code, name, child, phone]
       );
@@ -259,6 +263,7 @@ export async function acceptInvite(
           world,
           childCode: (rows[0].child_code as string) ?? null,
           spotsRemaining: Math.max(0, capacity - accepted),
+          chainColor: (rows[0].chain_color as string) ?? null,
         };
       }
 
@@ -294,19 +299,114 @@ export async function declineInvite(code: string): Promise<DeclineResult> {
   return { ok: false, reason: info === null ? 'invalid' : 'dead' };
 }
 
-/** Admin: mint a seed code (no issuer, depth 0) in the given world. */
-export async function mintSeedCode(world: World = WORLD_LIVE): Promise<string> {
+/**
+ * Colours held by a chain someone is still in — an unused or accepted code —
+ * in this world. A chain that was killed or declined to nothing frees its
+ * colour: nobody in it will be at the door asking for that wristband.
+ */
+export async function takenChainColors(world: World): Promise<string[]> {
+  const rows = await q(
+    `SELECT DISTINCT chain_color FROM codes
+     WHERE world = $1 AND chain_color IS NOT NULL
+       AND status IN ('unused', 'accepted')`,
+    [world]
+  );
+  return rows.map((r) => String(r.chain_color));
+}
+
+export type ColorChoice = { color?: string; allowDuplicate?: boolean };
+
+export type ColorRefusal = {
+  ok: false;
+  /** exhausted: every colour is on a live chain and none was named.
+   *  taken: the one named is, and allowDuplicate was not set. */
+  reason: 'exhausted' | 'taken' | 'badcolor';
+};
+
+/**
+ * Pick a seed's colour. Unasked, the next free one in palette order; once
+ * they are all on live chains it refuses rather than hand out a duplicate.
+ * Doubling up is only ever deliberate: a named colour plus allowDuplicate.
+ */
+async function resolveColor(
+  world: World,
+  choice: ColorChoice
+): Promise<{ ok: true; color: string } | ColorRefusal> {
+  const taken = new Set(await takenChainColors(world));
+  if (choice.color) {
+    if (!chainColor(choice.color)) return { ok: false, reason: 'badcolor' };
+    if (taken.has(choice.color) && !choice.allowDuplicate) {
+      return { ok: false, reason: 'taken' };
+    }
+    return { ok: true, color: choice.color };
+  }
+  const free = CHAIN_PALETTE.find((c) => !taken.has(c.name));
+  return free ? { ok: true, color: free.name } : { ok: false, reason: 'exhausted' };
+}
+
+export type MintResult = { ok: true; code: string; color: string } | ColorRefusal;
+
+/** Admin: mint a seed code (no issuer, depth 0) that starts a new chain. */
+export async function mintSeedCode(
+  world: World = WORLD_LIVE,
+  choice: ColorChoice = {}
+): Promise<MintResult> {
+  const picked = await resolveColor(world, choice);
+  if (!picked.ok) return picked;
   for (let attempt = 0; attempt < 3; attempt++) {
     const code = generateCode();
     try {
-      await q(`INSERT INTO codes (code, world) VALUES ($1, $2)`, [code, world]);
-      return code;
+      await q(
+        `INSERT INTO codes (code, world, chain_color) VALUES ($1, $2, $3)`,
+        [code, world, picked.color]
+      );
+      return { ok: true, code, color: picked.color };
     } catch (e: unknown) {
       if ((e as { code?: string })?.code === '23505' && attempt < 2) continue;
       throw e;
     }
   }
   throw new Error('could not generate a unique seed code');
+}
+
+export type ColorChainResult =
+  | { ok: true; color: string; updated: number }
+  | ColorRefusal
+  | { ok: false; reason: 'notfound' | 'notseed' | 'colored' };
+
+/**
+ * Admin: colour a chain that has none — the seed and everyone below it.
+ * Only happens to chains that predate colours and outnumbered the palette.
+ * A chain that already has a colour is refused: its guests may have seen it
+ * on screen, and it is the wristband they will ask for.
+ */
+export async function colorUncoloredChain(
+  code: string,
+  choice: ColorChoice
+): Promise<ColorChainResult> {
+  const seed = await q(
+    `SELECT world, issuer_id, chain_color FROM codes WHERE code = $1`,
+    [code]
+  );
+  if (seed.length === 0) return { ok: false, reason: 'notfound' };
+  if (seed[0].issuer_id != null) return { ok: false, reason: 'notseed' };
+  if (seed[0].chain_color != null) return { ok: false, reason: 'colored' };
+
+  const picked = await resolveColor(Number(seed[0].world) as World, choice);
+  if (!picked.ok) return picked;
+  const rows = await q(
+    `WITH RECURSIVE tree AS (
+       SELECT id FROM codes
+       WHERE code = $1 AND issuer_id IS NULL AND chain_color IS NULL
+       UNION ALL
+       SELECT c.id FROM codes c JOIN tree t ON c.issuer_id = t.id
+     )
+     UPDATE codes c SET chain_color = $2
+     FROM tree t WHERE c.id = t.id AND c.chain_color IS NULL
+     RETURNING c.id`,
+    [code, picked.color]
+  );
+  return { ok: true, color: picked.color, updated: rows.length };
 }
 
 export type ClaimResult =
@@ -465,6 +565,7 @@ export type CodeRow = {
   invitee_phone: string | null;
   passphrase: string | null;
   sms_status: string | null;
+  chain_color: string | null;
   created_at: string;
   decided_at: string | null;
 };
@@ -472,7 +573,7 @@ export type CodeRow = {
 export async function allCodes(world?: World): Promise<CodeRow[]> {
   const sql = `SELECT id, code, status, issuer_id, guest_name, guest_phone,
                       invited_name, depth, position, world,
-                      invitee_phone, passphrase, sms_status,
+                      invitee_phone, passphrase, sms_status, chain_color,
                       created_at::text, decided_at::text
                FROM codes ${world ? 'WHERE world = $1' : ''} ORDER BY id`;
   return (await q(sql, world ? [world] : [])) as unknown as CodeRow[];

@@ -9,6 +9,7 @@ import {
 import { clientIp, overLimit } from '@/lib/rateLimit';
 import { WORLD_DEMO } from '@/lib/defaults';
 import { normalizePhone } from '@/lib/phone';
+import { chainColor } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,5 +53,8 @@ export async function POST(req: Request) {
     spotsRemaining: res.spotsRemaining,
     childCode: res.childCode,
     demo: res.world === WORLD_DEMO,
+    // The one place a chain's colour leaves the server: after the seat is
+    // theirs. Nothing a visitor can call beforehand carries it.
+    chain: chainColor(res.chainColor),
   });
 }

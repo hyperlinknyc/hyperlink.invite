@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChainColor } from '@/lib/config';
 import { Logo } from './Logo';
 
 // One visual line of terminal output, built from spans so parts of a line
@@ -8,7 +9,20 @@ import { Logo } from './Logo';
 export type Span = { t: string; href?: string; act?: string; cls?: string };
 /** `logo: true` renders the mark instead of text — it has no characters, so
  *  it appears at once and takes the paragraph beat that follows a blank. */
-export type Line = { spans: Span[]; cls?: string; logo?: boolean };
+export type Line = {
+  spans: Span[];
+  cls?: string;
+  logo?: boolean;
+  /** Logo only: the chain colour it settles on, and whether it travels there
+   *  from the brand green or simply starts there. */
+  chain?: ChainColor;
+  animate?: boolean;
+  /** Inline colour for the whole line. Only the chain label uses it. */
+  color?: string;
+  /** Not a line: a held beat of this many ms. Tapping does not cut it short —
+   *  it is the logo's moment, and the label must not land before it settles. */
+  pause?: number;
+};
 
 export const L = (t: string, cls?: string): Line => ({ spans: [{ t }], cls });
 export const BLANK: Line = { spans: [{ t: '' }] };
@@ -39,6 +53,10 @@ export function useTypewriter() {
     setBusy(true);
     skipRef.current = false;
     for (const line of lines) {
+      if (line.pause) {
+        await sleep(line.pause);
+        continue;
+      }
       const total = line.spans.reduce((a, s) => a + s.t.length, 0);
       if (total > 0 && !skipRef.current) {
         for (let n = 1; n <= total; n++) {
@@ -121,7 +139,10 @@ function LineView({
     spans.push(<SpanView key={i} s={{ ...s, t }} onAct={onAct} />);
   }
   return (
-    <div className={`line ${line.cls ?? ''}`}>
+    <div
+      className={`line ${line.cls ?? ''}`}
+      style={line.color ? { color: line.color } : undefined}
+    >
       {spans}
       {cursor && <span className="cursor" />}
     </div>
@@ -177,7 +198,11 @@ export function Screen({
     <div className="crt" onClick={onTap}>
       <div className="log" ref={logRef}>
         {done.map((line, i) =>
-          line.logo ? <Logo key={i} /> : <LineView key={i} line={line} onAct={onAct} />
+          line.logo ? (
+            <Logo key={i} chain={line.chain} animate={line.animate} />
+          ) : (
+            <LineView key={i} line={line} onAct={onAct} />
+          )
         )}
         {current && <LineView line={current.line} upto={current.n} cursor />}
         {inputLine && (

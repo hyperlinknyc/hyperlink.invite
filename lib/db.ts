@@ -7,6 +7,7 @@ type Row = Record<string, unknown>;
 type Stmt = string | [string, unknown[]];
 
 import { DEFAULTS, WORLD_LIVE, WORLD_DEMO } from './defaults';
+import { CHAIN_PALETTE } from './config';
 
 const SCHEMA: Stmt[] = [
   // ── event_state: one row per world (1 = live party, 2 = demo sandbox) ──
@@ -81,6 +82,55 @@ const SCHEMA: Stmt[] = [
    ) WHERE e.next_position < e.accepted_count
       OR e.next_position < COALESCE(
            (SELECT MAX(position) FROM codes WHERE world = e.id), 0)`,
+
+  // Chain colour: the wristband at the door, by palette name (lib/config.ts).
+  // A seed gets one when minted; every code inherits its issuer's on accept.
+  // Lives only here — never encoded in the code string.
+  `ALTER TABLE codes ADD COLUMN IF NOT EXISTS chain_color TEXT`,
+  // Backfill, step 1: seeds that predate colours get one in palette order,
+  // oldest first, skipping colours a live chain already holds. Only chains
+  // someone is still in (an unused or accepted code) count — a killed or
+  // declined seed has nobody to hand a wristband to. More live seeds than
+  // colours leaves the extras NULL for admin to resolve, rather than doubling
+  // up silently. Both steps only ever fill NULLs, so re-running is a no-op.
+  [
+    `WITH RECURSIVE tree AS (
+       SELECT id AS root, id, status FROM codes
+       WHERE issuer_id IS NULL AND chain_color IS NULL
+       UNION ALL
+       SELECT t.root, c.id, c.status FROM codes c JOIN tree t ON c.issuer_id = t.id
+     ),
+     seeds AS (
+       SELECT s.id, s.world,
+              ROW_NUMBER() OVER (PARTITION BY s.world ORDER BY s.id) AS rn
+       FROM codes s
+       WHERE s.id IN (SELECT root FROM tree WHERE status IN ('unused', 'accepted'))
+     ),
+     free AS (
+       SELECT w.world, p.name,
+              ROW_NUMBER() OVER (PARTITION BY w.world ORDER BY p.ord) AS rn
+       FROM (SELECT DISTINCT world FROM seeds) w
+       CROSS JOIN unnest(string_to_array($1, ',')) WITH ORDINALITY AS p(name, ord)
+       WHERE NOT EXISTS (
+         SELECT 1 FROM codes x
+         WHERE x.world = w.world AND x.chain_color = p.name
+           AND x.status IN ('unused', 'accepted')
+       )
+     )
+     UPDATE codes c SET chain_color = f.name
+     FROM seeds s JOIN free f ON f.world = s.world AND f.rn = s.rn
+     WHERE c.id = s.id`,
+    [CHAIN_PALETTE.map((p) => p.name).join(',')],
+  ],
+  // Step 2: every code takes its seed's colour, walking down each chain.
+  `WITH RECURSIVE tree AS (
+     SELECT id, chain_color FROM codes
+     WHERE issuer_id IS NULL AND chain_color IS NOT NULL
+     UNION ALL
+     SELECT c.id, t.chain_color FROM codes c JOIN tree t ON c.issuer_id = t.id
+   )
+   UPDATE codes c SET chain_color = t.chain_color
+   FROM tree t WHERE c.id = t.id AND c.chain_color IS NULL`,
 
   // ── event settings, editable from the admin console ────────────────────
   `CREATE TABLE IF NOT EXISTS settings (

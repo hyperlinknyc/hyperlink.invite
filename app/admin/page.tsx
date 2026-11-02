@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+type ChainColor = { name: string; hex: string; glow: number };
 
 type CodeRow = {
   id: number;
@@ -16,6 +18,7 @@ type CodeRow = {
   invitee_phone: string | null;
   passphrase: string | null;
   sms_status: string | null;
+  chain_color: string | null;
   created_at: string;
   decided_at: string | null;
 };
@@ -54,8 +57,39 @@ type State = {
     phone: string;
     code: string;
     invitedAs: string;
+    chain: string;
   }[];
+  palette: ChainColor[];
+  /** Colours on a chain someone is still in, per world. */
+  taken: { live: string[]; demo: string[] };
 };
+
+/**
+ * Per-seed tallies, keyed by the seed's id: accepted guests and codes still
+ * open anywhere in its chain, the seed included. A chain with neither has
+ * nobody left in it to hand a wristband to.
+ */
+function chainStats(codes: CodeRow[]) {
+  const byId = new Map(codes.map((c) => [c.id, c]));
+  const rootOf = (c: CodeRow) => {
+    let n = c;
+    while (n.issuer_id != null && byId.has(n.issuer_id)) n = byId.get(n.issuer_id)!;
+    return n.id;
+  };
+  const stats = new Map<number, { accepted: number; open: number }>();
+  for (const c of codes) {
+    const r = rootOf(c);
+    const s = stats.get(r) ?? { accepted: 0, open: 0 };
+    if (c.status === 'accepted') s.accepted++;
+    if (c.status === 'unused') s.open++;
+    stats.set(r, s);
+  }
+  return stats;
+}
+
+/** Colour as a CSS variable, so the press state of `.act` can still invert it. */
+const chip = (hex?: string) =>
+  (hex ? { '--chip': hex } : undefined) as React.CSSProperties | undefined;
 
 const GLYPH: Record<CodeRow['status'], string> = {
   unused: '·',
@@ -125,6 +159,8 @@ export default function Admin() {
   const [msg, setMsg] = useState('');
   const [draft, setDraft] = useState<Settings | null>(null);
   const [showDemo, setShowDemo] = useState(false);
+  // Colour for the next live seed. Null follows the next free one.
+  const [pick, setPick] = useState<string | null>(null);
   // Roots folded shut, by code. Chains get long once the party fills.
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [handoff, setHandoff] = useState<{
@@ -182,12 +218,76 @@ export default function Admin() {
     return r.json();
   }
 
+  const hexOf = (name: string | null) =>
+    state?.palette.find((p) => p.name === name)?.hex;
+
+  /**
+   * Live seeds take the colour picked in the row above, or the next free one.
+   * Demo seeds always take the next free demo colour. Once every colour is on
+   * a live chain, nothing is minted until one is picked on purpose — and a
+   * picked colour that is already in use asks first.
+   */
   async function generate(demo = false) {
-    const res = await post('/api/admin/generate', { n: 1, demo });
+    const taken = new Set(state?.taken[demo ? 'demo' : 'live'] ?? []);
+    const color = demo ? undefined : (pick ?? undefined);
+    let allowDuplicate = false;
+    if (color && taken.has(color)) {
+      if (
+        !window.confirm(
+          `${color} IS ALREADY ON A LIVE CHAIN.\n\n` +
+            `Two chains will share ${color} wristbands at the door. Mint anyway?`
+        )
+      )
+        return;
+      allowDuplicate = true;
+    }
+    const res = await post('/api/admin/generate', { n: 1, demo, color, allowDuplicate });
+    if (res.ok) {
+      setMsg(
+        `MINTED ${demo ? 'DEMO' : 'SEED'} CODE: ${res.codes.join(' ')} · ${res.colors.join(' ')} CHAIN`
+      );
+      setPick(null);
+    } else if (res.error === 'exhausted') {
+      setMsg(
+        demo
+          ? 'NOT MINTED: EVERY COLOR IS ON A LIVE DEMO CHAIN. PURGE THE DEMO WORLD.'
+          : `NOT MINTED: ALL ${state?.palette.length ?? ''} COLORS ARE ON LIVE CHAINS. ` +
+              'PICK ONE ABOVE TO SHARE IT ON PURPOSE.'
+      );
+    } else {
+      setMsg(`MINT FAILED${res.error ? `: ${res.error}` : ''}`);
+    }
+    refresh();
+  }
+
+  /** Give a colour to a chain that has none (it predates chain colours). */
+  async function setChainColor(code: string, demo: boolean) {
+    if (!state) return;
+    const taken = new Set(state.taken[demo ? 'demo' : 'live']);
+    const free = state.palette.map((p) => p.name).filter((n) => !taken.has(n));
+    const answer = window.prompt(
+      `Color for the chain starting at ${code}?\n\n` +
+        `Free: ${free.join(', ') || 'none'}\n` +
+        `On live chains: ${[...taken].join(', ') || 'none'}`,
+      free[0] ?? ''
+    );
+    if (!answer?.trim()) return;
+    const color = answer.trim().toUpperCase();
+    let res = await post('/api/admin/color', { code, color });
+    if (!res.ok && res.error === 'taken') {
+      if (
+        !window.confirm(
+          `${color} IS ALREADY ON A LIVE CHAIN.\n\n` +
+            `Two chains will share ${color} wristbands at the door. Use it anyway?`
+        )
+      )
+        return;
+      res = await post('/api/admin/color', { code, color, allowDuplicate: true });
+    }
     setMsg(
-      res.codes
-        ? `MINTED ${demo ? 'DEMO' : 'SEED'} CODE: ${res.codes.join(' ')}`
-        : 'MINT FAILED'
+      res.ok
+        ? `${code} CHAIN IS NOW ${res.color} (${res.updated} CODES).`
+        : `NOT SET: ${res.error === 'badcolor' ? `${color} IS NOT IN THE PALETTE` : res.error}`
     );
     refresh();
   }
@@ -333,7 +433,10 @@ export default function Admin() {
   async function copyEmails() {
     if (!state?.guests.length) return;
     const text = state.guests
-      .map((g) => `${String(g.position).padStart(2, '0')}  ${g.name}  ${g.phone}`)
+      .map(
+        (g) =>
+          `${String(g.position).padStart(2, '0')}  ${g.name}  ${g.chain || 'NO COLOR'}  ${g.phone}`
+      )
       .join('\n');
     try {
       await navigator.clipboard.writeText(text);
@@ -343,7 +446,8 @@ export default function Admin() {
     }
   }
 
-  function renderTree(codes: CodeRow[]) {
+  function renderTree(codes: CodeRow[], demo = false) {
+    const chains = chainStats(codes);
     const byIssuer = new Map<number | null, CodeRow[]>();
     for (const c of codes) {
       const k = c.issuer_id;
@@ -390,7 +494,10 @@ export default function Admin() {
           )}
           <span>
             {' '}
-            {statusGlyph(node)} {node.code}
+            <span className="chip" style={chip(hexOf(node.chain_color))}>
+              {statusGlyph(node)}
+            </span>{' '}
+            {node.code}
           </span>
           <span className={node.status === 'accepted' ? '' : 'dim'}>
             {' '}
@@ -398,6 +505,34 @@ export default function Admin() {
             {pos}
             {node.guest_name ? ` ${node.guest_name}` : ''}
           </span>
+          {isRoot &&
+            (() => {
+              const s = chains.get(node.id) ?? { accepted: 0, open: 0 };
+              const live = s.accepted + s.open > 0;
+              if (node.chain_color) {
+                return (
+                  <>
+                    {/* Faded once nobody is left in it: the colour is free again. */}
+                    <span
+                      className="chip"
+                      style={{ ...chip(hexOf(node.chain_color)), opacity: live ? 1 : 0.45 }}
+                    >
+                      {` ── ${node.chain_color}`}
+                    </span>
+                    <span className="dim">{` · ${s.accepted} IN · ${s.open} OPEN`}</span>
+                  </>
+                );
+              }
+              // Only chains that predate colours can get here.
+              return live ? (
+                <>
+                  <span className="warn"> ── NO COLOR</span>{' '}
+                  <span className="act" onClick={() => setChainColor(node.code, demo)}>
+                    [SET COLOR]
+                  </span>
+                </>
+              ) : null;
+            })()}
           {node.invitee_phone && (
             <span className="dim">
               {' → '}
@@ -467,6 +602,55 @@ export default function Admin() {
     return out;
   }
 
+  /**
+   * What the door needs: accepted guests per colour. Plus a warning for any
+   * live chain left without a colour, which only a pre-colour seed can be.
+   */
+  function renderChainSummary(codes: CodeRow[]) {
+    if (!state) return null;
+    const perColor = new Map<string, number>();
+    for (const c of codes) {
+      if (c.status === 'accepted' && c.chain_color) {
+        perColor.set(c.chain_color, (perColor.get(c.chain_color) ?? 0) + 1);
+      }
+    }
+    const chains = chainStats(codes);
+    const uncolored = codes.filter((c) => {
+      const s = chains.get(c.id);
+      return c.issuer_id === null && !c.chain_color && s && s.accepted + s.open > 0;
+    }).length;
+    const shown = [
+      ...state.palette.map((p) => p.name),
+      // A name no longer in the palette still has guests holding it.
+      ...[...perColor.keys()].filter((n) => !hexOf(n)),
+    ].filter((n) => perColor.has(n));
+    return (
+      <>
+        <div className="line">
+          <span className="dim">WRISTBANDS </span>
+          {shown.length === 0 ? (
+            <span className="dim">— NOBODY IN YET</span>
+          ) : (
+            shown.map((n, i) => (
+              <React.Fragment key={n}>
+                {i > 0 && <span className="dim"> · </span>}
+                <span className="chip" style={chip(hexOf(n))}>
+                  {n} {perColor.get(n)}
+                </span>
+              </React.Fragment>
+            ))
+          )}
+        </div>
+        {uncolored > 0 && (
+          <div className="line warn">
+            {uncolored} LIVE {uncolored === 1 ? 'CHAIN HAS' : 'CHAINS HAVE'} NO COLOR —
+            THERE WERE MORE SEEDS THAN COLORS. [SET COLOR] ON THE SEED.
+          </div>
+        )}
+      </>
+    );
+  }
+
   if (authed === null) {
     return (
       <div className="crt">
@@ -503,6 +687,9 @@ export default function Admin() {
 
   const c = state?.counts;
   const d = state?.demoCounts;
+  const takenLive = new Set(state?.taken.live ?? []);
+  const nextFree = state?.palette.find((p) => !takenLive.has(p.name))?.name ?? null;
+  const chosen = pick ?? nextFree;
 
   return (
     <div className="crt">
@@ -516,9 +703,45 @@ export default function Admin() {
             </div>
           </div>
         )}
+        {state && (
+          <div className="admin-block">
+            <div className="line">
+              <span className="dim">NEXT SEED COLOR </span>
+              {state.palette.map((p) => {
+                const inUse = takenLive.has(p.name);
+                return (
+                  <React.Fragment key={p.name}>
+                    <span
+                      className="act chip"
+                      style={{
+                        ...chip(p.hex),
+                        textDecoration: inUse ? 'line-through' : undefined,
+                        opacity: inUse && chosen !== p.name ? 0.45 : 1,
+                      }}
+                      onClick={() => setPick(p.name === nextFree ? null : p.name)}
+                    >
+                      {chosen === p.name ? `[■ ${p.name}]` : `[${p.name}]`}
+                    </span>{' '}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <div className="line dim">
+              Struck through = on a chain someone is still in. Defaults to the next
+              free one.
+            </div>
+            {!nextFree && (
+              <div className="line warn">
+                ALL {state.palette.length} COLORS ARE ON LIVE CHAINS. ANOTHER SEED
+                MEANS TWO CHAINS SHARE A WRISTBAND — PICK ONE ABOVE ON PURPOSE, OR
+                NOTHING IS MINTED.
+              </div>
+            )}
+          </div>
+        )}
         <div className="admin-block">
           <span className="act" onClick={() => generate(false)}>
-            [+ MINT SEED CODE]
+            [+ MINT {chosen ? `${chosen} ` : ''}SEED CODE]
           </span>{' '}
           <span className="act" onClick={copyEmails}>
             [COPY DOOR LIST]
@@ -623,6 +846,7 @@ export default function Admin() {
             · unused (still works) · ■ accepted · ✗ declined by them ·
             ⊘ removed by you · † killed / retired when full
           </div>
+          {state && renderChainSummary(state.codes)}
           {state && state.codes.length > 0 ? (
             renderTree(state.codes)
           ) : (
@@ -660,7 +884,7 @@ export default function Admin() {
                 </span>
               </div>
               {state && state.demoCodes.length > 0 ? (
-                renderTree(state.demoCodes)
+                renderTree(state.demoCodes, true)
               ) : (
                 <div className="line dim">
                   NO DEMO CODES. MINT ONE AND OPEN IT ON THE MAIN SITE.
@@ -682,6 +906,11 @@ export default function Admin() {
                   {String(g.position ?? 0).padStart(2, '0')}{'  '}
                 </span>
                 <span>{g.name}</span>
+                {g.chain ? (
+                  <span className="chip" style={chip(hexOf(g.chain))}>{`  ${g.chain}`}</span>
+                ) : (
+                  <span className="warn">{'  NO COLOR'}</span>
+                )}
                 <span className="dim">{g.phone ? `  ${g.phone}` : ''}</span>
                 {g.invitedAs &&
                   !g.name.toLowerCase().startsWith(g.invitedAs.toLowerCase()) && (
