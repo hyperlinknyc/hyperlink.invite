@@ -8,9 +8,11 @@ import { colorPath, hexToOklch, hexToRgb, oklabDistance, oklchToRgb } from '@/li
 export const CHAIN_TRANSITION_MS = 5000;
 
 /** How long it stays brand green once it appears, so the guest sees it green
- *  first. Counted in time the page is actually on screen. Ten seconds was
- *  tried and read as dead air for a mark that is only green. */
-export const CHAIN_HOLD_MS = 3000;
+ *  first. Counted in time the page is actually on screen. The whole reveal
+ *  (this plus CHAIN_TRANSITION_MS) has to land before a guest taps the
+ *  Instagram link above it and leaves: ten seconds read as dead air, and three
+ *  was still too slow for that. */
+export const CHAIN_HOLD_MS = 1000;
 
 // The halo from .logo in globals.css as [blur px, alpha]. A chain's `glow`
 // scales the alphas, so the darker hues can be lifted to read on black.
