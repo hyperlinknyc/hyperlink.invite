@@ -1,6 +1,8 @@
 // OKLab / OKLCH conversions (Björn Ottosson's matrices), sRGB in and out.
-// Used to move the logo between colours along hue rather than through RGB,
-// which goes muddy — green to pink in RGB passes through grey-brown.
+// Used to move the logo between colours along a path a viewer reads as one
+// colour becoming another. Straight RGB goes muddy, and sweeping the hue
+// angle shows every colour in between — green to pink passes aqua, blue and
+// violet, which reads as three colour changes rather than one.
 
 export type Oklch = { l: number; c: number; h: number };
 type Rgb = [number, number, number];
@@ -78,23 +80,45 @@ export function oklchToRgb({ l, c, h }: Oklch): Rgb {
   ) as Rgb;
 }
 
+const toLab = ({ l, c, h }: Oklch) => ({
+  L: l,
+  a: c * Math.cos((h * Math.PI) / 180),
+  b: c * Math.sin((h * Math.PI) / 180),
+});
+const fromLab = (L: number, a: number, b: number): Oklch => {
+  const h = (Math.atan2(b, a) * 180) / Math.PI;
+  return { l: L, c: Math.hypot(a, b), h: h < 0 ? h + 360 : h };
+};
+const lerp = (x: number, y: number, t: number) => x + (y - x) * t;
+
 /**
- * Interpolate in OKLCH. The hue always climbs: from the brand green every
- * palette hue lies upward through cyan and blue, while the short way round to
- * pink would sweep through yellow and amber. An achromatic end (WHITE) has no
- * hue of its own, so it borrows the other end's and only lightness and
- * chroma move.
+ * The path from one colour to another, as t from 0 to 1. Never a hue sweep.
+ *
+ * A straight line in OKLab is the plainest gradient, and for close colours
+ * (green to cyan, to blue) it stays vivid. For colours near opposite — green
+ * to pink — the line collapses to a dull tan in the middle, so there the path
+ * goes through a pale neutral instead: the first colour drains away, then the
+ * second fills in, and no third colour is ever shown. Which one applies is
+ * decided from the colours themselves, so a retuned palette still behaves.
  */
-export function mixOklch(from: Oklch, to: Oklch, t: number): Oklch {
-  const grey = 0.02;
-  let h1 = from.h;
-  let h2 = to.h;
-  if (to.c < grey) h2 = h1;
-  else if (from.c < grey) h1 = h2;
-  if (h2 < h1) h2 += 360;
-  return {
-    l: from.l + (to.l - from.l) * t,
-    c: from.c + (to.c - from.c) * t,
-    h: (h1 + (h2 - h1) * t) % 360,
-  };
+export function colorPath(from: Oklch, to: Oklch): (t: number) => Oklch {
+  const p = toLab(from);
+  const q = toLab(to);
+  const straight = (t: number) =>
+    fromLab(lerp(p.L, q.L, t), lerp(p.a, q.a, t), lerp(p.b, q.b, t));
+
+  // How far the straight line sags in chroma, against the duller of its ends.
+  let lowest = Infinity;
+  for (let i = 0; i <= 20; i++) lowest = Math.min(lowest, straight(i / 20).c);
+  if (lowest >= 0.6 * Math.min(from.c, to.c)) return straight;
+
+  const mid = Math.max(p.L, q.L) + 0.04;
+  return (t) =>
+    t < 0.5
+      ? fromLab(lerp(p.L, mid, t * 2), lerp(p.a, 0, t * 2), lerp(p.b, 0, t * 2))
+      : fromLab(
+          lerp(mid, q.L, (t - 0.5) * 2),
+          lerp(0, q.a, (t - 0.5) * 2),
+          lerp(0, q.b, (t - 0.5) * 2)
+        );
 }

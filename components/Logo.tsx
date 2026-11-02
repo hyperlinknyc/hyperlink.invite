@@ -2,10 +2,10 @@
 
 import { useLayoutEffect, useRef } from 'react';
 import type { ChainColor } from '@/lib/config';
-import { hexToOklch, hexToRgb, mixOklch, oklabDistance, oklchToRgb } from '@/lib/oklch';
+import { colorPath, hexToOklch, hexToRgb, oklabDistance, oklchToRgb } from '@/lib/oklch';
 
 /** How long the mark takes to travel from the brand green to a chain colour. */
-export const CHAIN_TRANSITION_MS = 2500;
+export const CHAIN_TRANSITION_MS = 5000;
 
 /** How long it stays brand green once it appears, so the guest sees it green
  *  first. Counted in time the page is actually on screen. Ten seconds was
@@ -33,8 +33,9 @@ function paint(el: SVGSVGElement, [r, g, b]: number[], glow: number, bright = 1)
     .join(' ');
 }
 
-const easeInOut = (t: number) =>
-  t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+// Sine in-out: it never rushes. A cubic spends most of a long transition at
+// the ends and then changes the colour in a sudden middle second.
+const easeInOut = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
 
 /**
  * The HYPERLINK mark: two chain links joined by a bar.
@@ -91,6 +92,7 @@ export function Logo({
     // The GREEN chain is the brand colour: no hue to travel, so one
     // brightness pulse over the same span instead.
     const pulse = oklabDistance(from, to) < 0.03;
+    const path = colorPath(from, to);
 
     // Time only counts while the page is on screen. Frames stop in a hidden
     // tab, so the first one back reports a huge gap; capping each step keeps a
@@ -113,7 +115,7 @@ export function Logo({
         paint(el, finalRgb, chain.glow * (1 + 0.9 * swell), 1 + 0.35 * swell);
       } else {
         const k = easeInOut(t);
-        paint(el, oklchToRgb(mixOklch(from, to, k)), 1 + (chain.glow - 1) * k);
+        paint(el, oklchToRgb(path(k)), 1 + (chain.glow - 1) * k);
       }
       if (t < 1) raf = requestAnimationFrame(frame);
       else settle();
