@@ -39,8 +39,12 @@ export async function POST(req: Request) {
 
   const origin = new URL(req.url).origin;
   const fromHost = info.depth === 0;
-  // The neighbourhood and headcount set in admin, not the first-run seed values.
-  const { hood, capacity } = await getSettings();
+  // The neighbourhood and headcount set in admin, not the first-run seed
+  // values. A demo code quotes the demo room's size, not the real party's.
+  const settings = await getSettings();
+  const hood = settings.hood;
+  const capacity =
+    info.world === WORLD_DEMO ? settings.demoCapacity : settings.capacity;
 
   // ── share-sheet path ────────────────────────────────────────────────
   if (body.name !== undefined) {
