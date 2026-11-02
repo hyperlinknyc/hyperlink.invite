@@ -12,6 +12,9 @@ export const DEFAULTS = {
   eventDate: 'SEPTEMBER',
   eventTime: 'DATE TO FOLLOW',
   hood: 'EAST WILLIAMSBURG, BROOKLYN',
+  // The door terms, shown as "COVER: <cover>. BAR: <bar>."
+  cover: 'NONE',
+  bar: 'BYOB',
   igHandle: '@hyperlink.nyc',
   igUrl: 'https://instagram.com/hyperlink.nyc',
   // Machine datetimes behind the calendar file, New York wall-clock.

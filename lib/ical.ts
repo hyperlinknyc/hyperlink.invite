@@ -63,6 +63,8 @@ const esc = (s: string) =>
 export type IcsInput = {
   edition: string;
   hood: string;
+  cover: string;
+  bar: string;
   igHandle: string;
   startsAt: string;
   endsAt: string;
@@ -91,7 +93,8 @@ export function buildIcs(opts: IcsInput): string | null {
     `LOCATION:${esc(opts.hood)}`,
     `DESCRIPTION:${esc(
       `You're on the list.\n\nExact address drops on Instagram — follow ${opts.igHandle}. ` +
-        `The account is private; request it and we'll let you in.\n\nBYOB. No cover.`
+        `The account is private; request it and we'll let you in.\n\n` +
+        `Cover: ${opts.cover}. Bar: ${opts.bar}.`
     )}`,
     'BEGIN:VALARM',
     'TRIGGER:-PT3H',

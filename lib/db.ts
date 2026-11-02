@@ -163,6 +163,13 @@ const SCHEMA: Stmt[] = [
      WHERE id = 1 AND starts_at = '' AND ends_at = ''`,
     [DEFAULTS.startsAt, DEFAULTS.endsAt],
   ],
+  // Door terms. An existing row takes today's wording (NONE / BYOB), so the
+  // deploy changes nothing guests see until you edit them. Blank is refused by
+  // updateSettings, so only a never-set row matches the UPDATEs.
+  `ALTER TABLE settings ADD COLUMN IF NOT EXISTS cover TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE settings ADD COLUMN IF NOT EXISTS bar TEXT NOT NULL DEFAULT ''`,
+  [`UPDATE settings SET cover = $1 WHERE id = 1 AND cover = ''`, [DEFAULTS.cover]],
+  [`UPDATE settings SET bar = $1 WHERE id = 1 AND bar = ''`, [DEFAULTS.bar]],
 
   `CREATE TABLE IF NOT EXISTS attempts (
     id SERIAL PRIMARY KEY,

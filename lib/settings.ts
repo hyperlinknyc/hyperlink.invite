@@ -6,6 +6,8 @@ export type Settings = {
   eventDate: string;
   eventTime: string;
   hood: string;
+  cover: string;
+  bar: string;
   igHandle: string;
   igUrl: string;
   startsAt: string;
@@ -19,6 +21,8 @@ export const SETTING_FIELDS = [
   'eventDate',
   'eventTime',
   'hood',
+  'cover',
+  'bar',
   'igHandle',
   'igUrl',
   'startsAt',
@@ -27,7 +31,8 @@ export const SETTING_FIELDS = [
 
 export async function getSettings(): Promise<Settings> {
   const rows = await q(
-    `SELECT s.edition, s.event_date, s.event_time, s.hood, s.ig_handle, s.ig_url, s.starts_at, s.ends_at,
+    `SELECT s.edition, s.event_date, s.event_time, s.hood, s.cover, s.bar,
+            s.ig_handle, s.ig_url, s.starts_at, s.ends_at,
             (SELECT capacity FROM event_state WHERE id = $1) AS capacity,
             (SELECT capacity FROM event_state WHERE id = $2) AS demo_capacity
      FROM settings s WHERE s.id = 1`,
@@ -39,6 +44,8 @@ export async function getSettings(): Promise<Settings> {
     eventDate: String(r.event_date ?? ''),
     eventTime: String(r.event_time ?? ''),
     hood: String(r.hood ?? ''),
+    cover: String(r.cover ?? ''),
+    bar: String(r.bar ?? ''),
     igHandle: String(r.ig_handle ?? ''),
     igUrl: String(r.ig_url ?? ''),
     startsAt: String(r.starts_at ?? ''),
@@ -53,6 +60,8 @@ const COLUMN: Record<string, string> = {
   eventDate: 'event_date',
   eventTime: 'event_time',
   hood: 'hood',
+  cover: 'cover',
+  bar: 'bar',
   igHandle: 'ig_handle',
   igUrl: 'ig_url',
   startsAt: 'starts_at',

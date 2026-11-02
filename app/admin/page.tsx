@@ -37,6 +37,8 @@ type Settings = {
   eventDate: string;
   eventTime: string;
   hood: string;
+  cover: string;
+  bar: string;
   igHandle: string;
   igUrl: string;
   startsAt: string;
@@ -130,6 +132,8 @@ const FIELDS: { key: keyof Settings; label: string; hint?: string }[] = [
   { key: 'eventDate', label: 'DATE      ', hint: 'e.g. SAT 11.15' },
   { key: 'eventTime', label: 'TIME      ', hint: 'e.g. 22:00 — 04:00' },
   { key: 'hood', label: 'NEIGHBORHD', hint: 'shown instead of the address' },
+  { key: 'cover', label: 'COVER     ', hint: 'e.g. NONE or $20 — "COVER: …"' },
+  { key: 'bar', label: 'BAR       ', hint: 'e.g. BYOB or OPEN BAR — "BAR: …"' },
   { key: 'igHandle', label: 'IG HANDLE ', hint: 'e.g. @hyperlink_nyc' },
   { key: 'igUrl', label: 'IG URL    ', hint: 'https://instagram.com/...' },
   { key: 'startsAt', label: 'CAL START ', hint: '2026-08-22T21:00 (NY time)' },

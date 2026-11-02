@@ -17,11 +17,15 @@ export type Line = {
    *  from the brand green or simply starts there. */
   chain?: ChainColor;
   animate?: boolean;
+  /** Logo only: ms it holds the brand green before it moves. */
+  hold?: number;
+  /** Logo only: called once it has reached the chain colour. */
+  onSettled?: () => void;
   /** Inline colour for the whole line. Only the chain label uses it. */
   color?: string;
-  /** Not a line: a held beat of this many ms. Tapping does not cut it short —
-   *  it is the logo's moment, and the label must not land before it settles. */
-  pause?: number;
+  /** Not a line: hold here until this resolves. Tapping does not cut it short
+   *  — it is the logo's moment, and the label must not land before it ends. */
+  wait?: Promise<void>;
 };
 
 export const L = (t: string, cls?: string): Line => ({ spans: [{ t }], cls });
@@ -53,8 +57,8 @@ export function useTypewriter() {
     setBusy(true);
     skipRef.current = false;
     for (const line of lines) {
-      if (line.pause) {
-        await sleep(line.pause);
+      if (line.wait) {
+        await line.wait;
         continue;
       }
       const total = line.spans.reduce((a, s) => a + s.t.length, 0);
@@ -199,7 +203,13 @@ export function Screen({
       <div className="log" ref={logRef}>
         {done.map((line, i) =>
           line.logo ? (
-            <Logo key={i} chain={line.chain} animate={line.animate} />
+            <Logo
+              key={i}
+              chain={line.chain}
+              animate={line.animate}
+              hold={line.hold}
+              onSettled={line.onSettled}
+            />
           ) : (
             <LineView key={i} line={line} onAct={onAct} />
           )
