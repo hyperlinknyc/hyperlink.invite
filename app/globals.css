@@ -52,7 +52,9 @@ a {
   color: var(--text);
   text-decoration: underline;
   text-underline-offset: 3px;
-  text-decoration-color: var(--faint);
+  /* Faint grey all but vanished on the black, so a plain link did not read as
+     one. A clear underline is what says "this is tappable". */
+  text-decoration-color: rgba(230, 230, 227, 0.65);
 }
 
 /* ── screen chrome ─────────────────────────────────────────────── */
@@ -150,18 +152,32 @@ a {
   color: var(--green);
 }
 
-/* The one action we want tapped. The only glow left on the page. */
+/* The action we want tapped, drawn as a button: a green frame, a steady glow,
+   and a target at least 44px tall so a thumb finds it. The text never dims —
+   the old pulse faded it to 62% half the time, which made it look disabled.
+   Only the halo breathes. */
 .cta,
 a.cta {
+  display: inline-block;
+  margin: 0.35em 0;
+  padding: 0.75em 1em;
   color: var(--green);
-  text-decoration-color: var(--green);
-  text-shadow: 0 0 9px rgba(62, 230, 62, 0.55);
-  animation: cta-pulse 1.9s ease-in-out infinite;
+  font-weight: 700;
+  text-decoration: none;
+  text-shadow: 0 0 9px rgba(62, 230, 62, 0.6);
+  border: 1px solid var(--green);
+  border-radius: 3px;
+  box-shadow: 0 0 10px rgba(62, 230, 62, 0.25), inset 0 0 8px rgba(62, 230, 62, 0.1);
+  animation: cta-glow 2.2s ease-in-out infinite;
 }
 
-@keyframes cta-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.62; }
+@keyframes cta-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(62, 230, 62, 0.2), inset 0 0 6px rgba(62, 230, 62, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(62, 230, 62, 0.5), inset 0 0 10px rgba(62, 230, 62, 0.22);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -192,6 +208,15 @@ a.cta {
 .act:hover,
 .act:active {
   background: var(--text);
+  color: var(--bg);
+  text-shadow: none;
+}
+
+/* Pressing a green button fills it, so a tap visibly lands. */
+.act.cta:hover,
+.act.cta:active,
+a.cta:active {
+  background: var(--green);
   color: var(--bg);
   text-shadow: none;
 }

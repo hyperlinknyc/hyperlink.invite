@@ -316,10 +316,9 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
   ];
 }
 
-/** The Instagram requirement, shown only once the guest is safely on the list. */
-function instagramBlock(cfg: Settings): Line[] {
+/** Why Instagram is required, shown only once the guest is safely on the list. */
+function instagramNote(cfg: Settings): Line[] {
   return [
-    BLANK,
     {
       spans: [
         { t: 'NOW FOLLOW ' },
@@ -334,10 +333,29 @@ function instagramBlock(cfg: Settings): Line[] {
     L('ONLY BY PEOPLE WE APPROVED.'),
     L('NOT FOLLOWING WHEN IT DROPS', 'warn'),
     L('MEANS NOT KNOWING WHERE.', 'warn'),
+  ];
+}
+
+/**
+ * The Instagram link: the last thing on the screen, printed after the mark has
+ * settled on the chain's colour. It is the one thing here that leaves the
+ * page, so a guest sees their colour before they can reach it. The
+ * instruction sits directly above it, so there is no guessing what to tap.
+ */
+function instagramLink(cfg: Settings): Line[] {
+  return [
+    L('TAP THE GREEN LINK TO FOLLOW.'),
     {
       spans: [{ t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
     },
   ];
+}
+
+/** The calendar link, offered only when there is a real datetime behind it. */
+function calendarLink(cfg: Settings): Line[] {
+  return cfg.hasCalendar
+    ? [{ spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical', cls: 'cta' }] }]
+    : [];
 }
 
 function payoffLines(s: Session, restored = false, animateChain = false): Line[] {
@@ -374,22 +392,18 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
       L('THE CHAIN ENDS WITH YOU.'),
       L('NO FURTHER INVITATIONS EXIST.'),
       BLANK,
-      // Repeated on the screen guests come back to. Before the Instagram
-      // block, never after it — that link is the one thing here that leaves
-      // the page.
+      // Repeated on the screen guests come back to.
       L('PHONE CAMERAS SEALED AT THE DOOR.'),
       L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
-      ...instagramBlock(cfg),
+      BLANK,
+      ...instagramNote(cfg),
       BLANK,
       ...closingDetails(cfg),
-      ...(cfg.hasCalendar
-      ? [
-              {
-                spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical', cls: 'cta' }],
-              } as Line,
-          ]
-        : []),
+      ...calendarLink(cfg),
+      // The mark and chain name come before the Instagram link, never after.
       ...signOff(s.chain, animateChain),
+      ...instagramLink(cfg),
+      BLANK,
     ];
   }
 
@@ -444,25 +458,25 @@ function afterSendLines(
     // these two, so it still shows once each.
     L('PHONE CAMERAS SEALED AT THE DOOR.'),
     L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
-    ...instagramBlock(cfg),
+    BLANK,
+    ...instagramNote(cfg),
     BLANK,
     ...closingDetails(cfg),
-    ...(cfg.hasCalendar
-      ? [
-          {
-            spans: [{ t: '>> ADD TO CALENDAR <<', href: '/api/ical', cls: 'cta' }],
-          } as Line,
-        ]
-      : []),
+    ...calendarLink(cfg),
+    // The mark and chain name come before the Instagram link, never after.
     ...signOff(chain, animateChain, hold),
+    ...instagramLink(cfg),
+    BLANK,
   ];
 }
 
 /**
- * The last thing on the screen. With a chain, the mark turns to its colour
- * once everything above has printed, then the chain's name types beneath it —
- * so colour is never the only signal. Without one (a session saved before
- * chains had colours) it stays the brand green, as before.
+ * The mark and the chain's name. With a chain, the mark turns to its colour,
+ * then the name types beneath it — so colour is never the only signal. The
+ * typewriter holds here until the colour has settled, and the Instagram link
+ * prints after it, so the link cannot be reached before the reveal is seen.
+ * Without a chain (a session saved before chains had colours) it stays the
+ * brand green, as before.
  */
 function signOff(chain?: ChainColor | null, animate = false, hold?: number): Line[] {
   const head: Line[] = [
