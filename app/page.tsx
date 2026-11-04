@@ -309,7 +309,8 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
           L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
-    L('(ONE LAST STEP AFTER THIS: INSTAGRAM.)', 'dim'),
+    L('(NEXT STEPS: INVITE SOMEONE, THEN', 'dim'),
+    L(' FOLLOW US ON INSTAGRAM.)', 'dim'),
     BLANK,
   ];
 }
