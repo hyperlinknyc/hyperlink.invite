@@ -310,8 +310,7 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
           L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
-    L(`(YOU WILL ALSO NEED TO FOLLOW ${cfg.igHandle} — WE WILL`, 'dim'),
-    L(' HAND YOU THE LINK ONCE YOU ARE THROUGH.)', 'dim'),
+    L('(ONE LAST STEP AFTER THIS: INSTAGRAM.)', 'dim'),
     BLANK,
   ];
 }
@@ -320,19 +319,15 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
 function instagramNote(cfg: Settings): Line[] {
   return [
     {
-      spans: [
-        { t: 'NOW FOLLOW ' },
-        { t: cfg.igHandle, href: cfg.igUrl },
-        { t: '. MANDATORY.' },
-      ],
+      spans: [{ t: cfg.igHandle, href: cfg.igUrl }, { t: ' IS PRIVATE.' }],
     },
-    L('THE ACCOUNT IS PRIVATE.'),
-    L('REQUEST IT AND WE LET YOU IN.'),
+    L('REQUEST TO FOLLOW AND WE LET YOU IN.'),
+    L('FOLLOWING IS MANDATORY.'),
     L('THE ADDRESS IS THE ONLY THING WE'),
-    L('HOLD BACK. IT GOES UP THERE, SEEN'),
+    L('HOLD BACK. WE POST IT THERE, SEEN'),
     L('ONLY BY PEOPLE WE APPROVED.'),
-    L('NOT FOLLOWING WHEN IT DROPS', 'warn'),
-    L('MEANS NOT KNOWING WHERE.', 'warn'),
+    L('IF YOU ARE NOT FOLLOWING WHEN IT', 'warn'),
+    L('DROPS, YOU WILL NOT KNOW WHERE.', 'warn'),
   ];
 }
 
