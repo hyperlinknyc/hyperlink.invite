@@ -337,7 +337,7 @@ function instagramNote(cfg: Settings): Line[] {
 }
 
 /**
- * The Instagram link: the last thing on the screen, printed after the mark has
+ * The Instagram link: printed after the mark has
  * settled on the chain's colour. It is the one thing here that leaves the
  * page, so a guest sees their colour before they can reach it. The
  * instruction sits directly above it, so there is no guessing what to tap.
@@ -396,13 +396,14 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
       L('PHONE CAMERAS SEALED AT THE DOOR.'),
       L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
       BLANK,
-      ...instagramNote(cfg),
-      BLANK,
       ...closingDetails(cfg),
       ...calendarLink(cfg),
-      // The mark and chain name come before the Instagram link, never after.
+      // The mark and chain name come before the Instagram link, never after;
+      // the Instagram explainer follows the link.
       ...signOff(s.chain, animateChain),
       ...instagramLink(cfg),
+      BLANK,
+      ...instagramNote(cfg),
       BLANK,
     ];
   }
@@ -459,13 +460,14 @@ function afterSendLines(
     L('PHONE CAMERAS SEALED AT THE DOOR.'),
     L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
     BLANK,
-    ...instagramNote(cfg),
-    BLANK,
     ...closingDetails(cfg),
     ...calendarLink(cfg),
-    // The mark and chain name come before the Instagram link, never after.
+    // The mark and chain name come before the Instagram link, never after;
+      // the Instagram explainer follows the link.
     ...signOff(chain, animateChain, hold),
     ...instagramLink(cfg),
+    BLANK,
+    ...instagramNote(cfg),
     BLANK,
   ];
 }
