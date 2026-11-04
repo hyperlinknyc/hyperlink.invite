@@ -286,7 +286,11 @@ const DECLINED_LINES: Line[] = [
  * is stated here in plain text and the tappable link waits until the end, once
  * their place is actually secured.
  */
-function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
+function namePromptLines(
+  cfg: Settings,
+  invitedName?: string | null,
+  finalSeat = false
+): Line[] {
   return [
     BLANK,
     // The one moment the terminal drops its register. Everything up to here
@@ -309,7 +313,13 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
           L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
-    L('(ONE LAST STEP AFTER THIS: INSTAGRAM.)', 'dim'),
+    // The final seat has nobody to invite, so their one next step is Instagram.
+    ...(finalSeat
+      ? [L('(NEXT STEP: FOLLOW US ON INSTAGRAM.)', 'dim')]
+      : [
+          L('(NEXT STEPS: INVITE SOMEONE, THEN', 'dim'),
+          L(' FOLLOW US ON INSTAGRAM.)', 'dim'),
+        ]),
     BLANK,
   ];
 }
@@ -528,6 +538,8 @@ export default function Home() {
   const claimNameRef = useRef('');
   const revealedRef = useRef(false);
   const invitedNameRef = useRef<string | null>(null);
+  // True when the guest would take the last seat: nobody left to invite.
+  const finalSeatRef = useRef(false);
   const last4Ref = useRef('');
 
   const origin =
@@ -683,6 +695,7 @@ export default function Home() {
       codeRef.current = res.code;
       demoRef.current = !!res.demo;
       invitedNameRef.current = res.invitedName ?? null;
+      finalSeatRef.current = res.spotsRemaining === 1;
       await typeLines(
         revealLines(
           res.spotsRemaining,
@@ -728,6 +741,7 @@ export default function Home() {
     if (res?.result === 'valid') {
       demoRef.current = !!res.demo;
       invitedNameRef.current = res.invitedName ?? null;
+      finalSeatRef.current = res.spotsRemaining === 1;
       await typeLines(
         revealLines(
           res.spotsRemaining,
@@ -781,6 +795,7 @@ export default function Home() {
     });
     if (res?.result === 'valid') {
       invitedNameRef.current = res.invitedName ?? null;
+      finalSeatRef.current = res.spotsRemaining === 1;
       demoRef.current = !!res.demo;
       await typeLines(
         revealLines(
@@ -815,7 +830,11 @@ export default function Home() {
     const v = value.toUpperCase();
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
-      await typeLines(namePromptLines(settingsRef.current, invitedNameRef.current));
+      await typeLines(namePromptLines(
+          settingsRef.current,
+          invitedNameRef.current,
+          finalSeatRef.current
+        ));
       setPhase('name');
     } else if (['DECLINE', 'D', 'NO', 'N'].includes(v)) {
       await typeLines(CONFIRM_DECLINE);
@@ -830,7 +849,11 @@ export default function Home() {
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
       await typeLines([L('RECONSIDERED. WISE.', 'dim')]);
-      await typeLines(namePromptLines(settingsRef.current, invitedNameRef.current));
+      await typeLines(namePromptLines(
+          settingsRef.current,
+          invitedNameRef.current,
+          finalSeatRef.current
+        ));
       setPhase('name');
       return;
     }
