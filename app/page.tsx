@@ -219,14 +219,13 @@ function revealLines(
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     // A term of entry, so it sits with the other terms rather than arriving
     // as a surprise at the door. Body text, not warn — amber is danger only.
-    // The handle is the admin setting, like every other mention of it.
     // Hand-broken to stay under the column: a soft-wrapped line drops to
     // column 0 and loses its indent, which is how "ONLY," once escaped the
     // margin. Keep every line here at 38 characters or fewer.
     L('3. PHONE CAMERAS SEALED AT THE DOOR.'),
     L('   WE SHOOT ON DISPOSABLES —'),
-    L(`   STORIES ONLY, ${s.igHandle},`),
-    L('   A FEW DAYS AFTER.'),
+    L("   STORIES ONLY, ON HYPERLINK'S"),
+    L('   INSTAGRAM, A FEW DAYS AFTER.'),
     L('   NOT INTO IT? LET THE DOOR KNOW.'),
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
     L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
@@ -310,8 +309,7 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
           L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
-    L(`(YOU WILL ALSO NEED TO FOLLOW ${cfg.igHandle} — WE WILL`, 'dim'),
-    L(' HAND YOU THE LINK ONCE YOU ARE THROUGH.)', 'dim'),
+    L('(ONE LAST STEP AFTER THIS: INSTAGRAM.)', 'dim'),
     BLANK,
   ];
 }
@@ -321,23 +319,23 @@ function instagramNote(cfg: Settings): Line[] {
   return [
     {
       spans: [
-        { t: 'NOW FOLLOW ' },
-        { t: cfg.igHandle, href: cfg.igUrl },
-        { t: '. MANDATORY.' },
+        { t: 'THE ' },
+        { t: 'HYPERLINK INSTAGRAM', href: cfg.igUrl },
+        { t: ' IS PRIVATE.' },
       ],
     },
-    L('THE ACCOUNT IS PRIVATE.'),
-    L('REQUEST IT AND WE LET YOU IN.'),
+    L('REQUEST TO FOLLOW AND WE LET YOU IN.'),
+    L('FOLLOWING IS MANDATORY.'),
     L('THE ADDRESS IS THE ONLY THING WE'),
-    L('HOLD BACK. IT GOES UP THERE, SEEN'),
+    L('HOLD BACK. WE POST IT THERE, SEEN'),
     L('ONLY BY PEOPLE WE APPROVED.'),
-    L('NOT FOLLOWING WHEN IT DROPS', 'warn'),
-    L('MEANS NOT KNOWING WHERE.', 'warn'),
+    L('IF YOU ARE NOT FOLLOWING WHEN IT', 'warn'),
+    L('DROPS, YOU WILL NOT KNOW WHERE.', 'warn'),
   ];
 }
 
 /**
- * The Instagram link: the last thing on the screen, printed after the mark has
+ * The Instagram link: printed after the mark has
  * settled on the chain's colour. It is the one thing here that leaves the
  * page, so a guest sees their colour before they can reach it. The
  * instruction sits directly above it, so there is no guessing what to tap.
@@ -396,13 +394,14 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
       L('PHONE CAMERAS SEALED AT THE DOOR.'),
       L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
       BLANK,
-      ...instagramNote(cfg),
-      BLANK,
       ...closingDetails(cfg),
       ...calendarLink(cfg),
-      // The mark and chain name come before the Instagram link, never after.
+      // The mark and chain name come before the Instagram link, never after;
+      // the Instagram explainer follows the link.
       ...signOff(s.chain, animateChain),
       ...instagramLink(cfg),
+      BLANK,
+      ...instagramNote(cfg),
       BLANK,
     ];
   }
@@ -459,13 +458,14 @@ function afterSendLines(
     L('PHONE CAMERAS SEALED AT THE DOOR.'),
     L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
     BLANK,
-    ...instagramNote(cfg),
-    BLANK,
     ...closingDetails(cfg),
     ...calendarLink(cfg),
-    // The mark and chain name come before the Instagram link, never after.
+    // The mark and chain name come before the Instagram link, never after;
+      // the Instagram explainer follows the link.
     ...signOff(chain, animateChain, hold),
     ...instagramLink(cfg),
+    BLANK,
+    ...instagramNote(cfg),
     BLANK,
   ];
 }
