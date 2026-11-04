@@ -219,14 +219,13 @@ function revealLines(
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     // A term of entry, so it sits with the other terms rather than arriving
     // as a surprise at the door. Body text, not warn — amber is danger only.
-    // The handle is the admin setting, like every other mention of it.
     // Hand-broken to stay under the column: a soft-wrapped line drops to
     // column 0 and loses its indent, which is how "ONLY," once escaped the
     // margin. Keep every line here at 38 characters or fewer.
     L('3. PHONE CAMERAS SEALED AT THE DOOR.'),
     L('   WE SHOOT ON DISPOSABLES —'),
-    L(`   STORIES ONLY, ${s.igHandle},`),
-    L('   A FEW DAYS AFTER.'),
+    L("   STORIES ONLY, ON HYPERLINK'S"),
+    L('   INSTAGRAM, A FEW DAYS AFTER.'),
     L('   NOT INTO IT? LET THE DOOR KNOW.'),
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
     L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
@@ -319,7 +318,11 @@ function namePromptLines(cfg: Settings, invitedName?: string | null): Line[] {
 function instagramNote(cfg: Settings): Line[] {
   return [
     {
-      spans: [{ t: cfg.igHandle, href: cfg.igUrl }, { t: ' IS PRIVATE.' }],
+      spans: [
+        { t: 'THE ' },
+        { t: 'HYPERLINK INSTAGRAM', href: cfg.igUrl },
+        { t: ' IS PRIVATE.' },
+      ],
     },
     L('REQUEST TO FOLLOW AND WE LET YOU IN.'),
     L('FOLLOWING IS MANDATORY.'),
