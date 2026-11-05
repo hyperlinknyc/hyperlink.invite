@@ -111,7 +111,7 @@ function SpanView({ s, onAct }: { s: Span; onAct?: (act: string) => void }) {
   if (s.act) {
     return (
       <span
-        className={`act ${s.cls ?? ''}`}
+        className={`act tap ${s.cls ?? ''}`}
         role="button"
         tabIndex={0}
         onClick={(e) => {
@@ -160,6 +160,7 @@ export function Screen({
   done,
   current,
   inputLine,
+  hint,
   onAct,
   onTap,
   onSubmit,
@@ -169,6 +170,8 @@ export function Screen({
   current: { line: Line; n: number } | null;
   /** When non-null, render an input line: prompt + typed value + cursor. */
   inputLine: { prompt: string; value: string } | null;
+  /** Shown under the input line when the guest may not realise they can type. */
+  hint?: string | null;
   onAct?: (act: string) => void;
   onTap?: () => void;
   /** Tapped confirm. iOS numeric keypads have no return key, so a visible
@@ -220,7 +223,7 @@ export function Screen({
         )}
         {current && <LineView line={current.line} upto={current.n} cursor />}
         {inputLine && (
-          <div className="line">
+          <div className="line live">
             <span>{inputLine.prompt}</span>
             <span>{inputLine.value}</span>
             <span className="cursor" />
@@ -242,6 +245,7 @@ export function Screen({
             )}
           </div>
         )}
+        {inputLine && hint && <div className="line live-hint">{hint}</div>}
         {children}
       </div>
     </div>
