@@ -260,6 +260,25 @@ a.cta:active {
   50% { opacity: 0.82; }
 }
 
+/* Full-screen stage for the opening glitch: logo alone, centred both ways. */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
+}
+.intro.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+
 /* Power-on glitch: the mark flashes up, tears, splits into red/blue ghosts and
    locks in, before any text prints. Lives on the wrapper so it never fights the
    inline colour/filter the chain reveal paints on the svg. */
