@@ -3,6 +3,7 @@ import { normalizeCode, isPlausibleCode } from '@/lib/codes';
 import {
   acceptInvite,
   codeInfo,
+  worldEpoch,
   phoneMatches,
   nameMatches,
 } from '@/lib/invites';
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
     spotsRemaining: res.spotsRemaining,
     childCode: res.childCode,
     demo: res.world === WORLD_DEMO,
+    // Stamped into the saved session; a later purge changes it.
+    epoch: await worldEpoch(res.world),
     // The one place a chain's colour leaves the server: after the seat is
     // theirs. Nothing a visitor can call beforehand carries it.
     chain: chainColor(res.chainColor),
