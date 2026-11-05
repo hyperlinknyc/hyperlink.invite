@@ -217,6 +217,7 @@ function revealLines(
     L(`COVER: ${s.cover || FALLBACK.cover}. BAR: ${s.bar || FALLBACK.bar}.`, 'dim'),
     L(`CAPACITY: ${capacity}. SPOTS OPEN: ${spotsRemaining}.`, 'dim'),
     L('DJ + ADDRESS: REVEALED ON INSTAGRAM.', 'dim'),
+    L('KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
