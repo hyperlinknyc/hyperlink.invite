@@ -89,14 +89,14 @@ const DENIALS = [
 
 // Shown when the backend is unreachable — never blame the guest's code.
 const FAULT_LINES: Line[] = [
-  L('CARRIER FAULT. THE NODE DID NOT ANSWER.', 'warn'),
-  L('YOUR CODE IS INTACT.', 'dim'),
-  L('WAIT AND TRANSMIT AGAIN.', 'dim'),
+  L('CARRIER FAULT — THE NODE DID NOT ANSWER', 'warn'),
+  L('YOUR CODE IS INTACT', 'dim'),
+  L('WAIT AND TRANSMIT AGAIN', 'dim'),
 ];
 
 const FULL_LINES: Line[] = [
   L('CAPACITY REACHED.', 'warn'),
-  L('THE ROOM IS SEALED.'),
+  L('THE ROOM IS SEALED'),
   L('ALL OUTSTANDING CODES'),
   L('HAVE BEEN TERMINATED.'),
   BLANK,
@@ -106,7 +106,7 @@ const FULL_LINES: Line[] = [
 const DEAD_LINES: Line[] = [
   L('KEY REJECTED.', 'warn'),
   L('THIS CODE HAS ALREADY BEEN SPENT'),
-  L('— OR BURNED.'),
+  L('— OR BURNED'),
   L('ONE CODE. ONE HOLDER. ONE CHANCE.'),
   L('THE LINK IS DEAD.', 'dim'),
   BLANK,
@@ -147,8 +147,8 @@ function boxAround(code: string): Line[] {
 
 // The first thing a guest must do: say what to do, and where the code lives.
 const ACCESS_PROMPT: Line[] = [
-  L('ENTER YOUR ACCESS CODE.'),
-  L('TYPE IT BELOW — IT CAME WITH YOUR INVITE.', 'dim'),
+  L('ENTER YOUR ACCESS CODE'),
+  L('TYPE IT BELOW — IT CAME WITH YOUR INVITE', 'dim'),
 ];
 
 const VERIFY_PROMPT: Line[] = [
@@ -156,7 +156,7 @@ const VERIFY_PROMPT: Line[] = [
   L('THIS INVITATION WAS SENT TO ONE PHONE.'),
   L('ENTER THE LAST 4 DIGITS OF YOUR PHONE'),
   L('NUMBER TO PROVE IT REACHED THE RIGHT'),
-  L('PERSON.'),
+  L('PERSON'),
   L('IF YOU CANNOT VALIDATE IT,', 'dim'),
   L('THIS INVITE IS NOT YOURS.', 'dim'),
   BLANK,
@@ -165,16 +165,16 @@ const VERIFY_PROMPT: Line[] = [
 const CLAIM_NAME_PROMPT: Line[] = [
   BLANK,
   L('THIS INVITATION HAS A NAME ON IT.'),
-  L('TYPE YOUR FIRST NAME TO OPEN IT.'),
-  L('WE WILL NOT TELL YOU WHOSE.', 'dim'),
+  L('TYPE YOUR FIRST NAME TO OPEN IT'),
+  L('WE WILL NOT TELL YOU WHOSE', 'dim'),
   L('YOU EITHER KNOW OR YOU DO NOT.', 'dim'),
   BLANK,
 ];
 
 // Marks a demo run so a sandbox pass is never mistaken for the real thing.
 const DEMO_BANNER: Line[] = [
-  L('*** SIMULATION — DEMO WORLD. ***', 'warn'),
-  L('*** NOT THE REAL GUEST LIST. ***', 'warn'),
+  L('*** SIMULATION — DEMO WORLD ***', 'warn'),
+  L('*** NOT THE REAL GUEST LIST ***', 'warn'),
   BLANK,
 ];
 
@@ -206,13 +206,13 @@ function revealLines(
   invitedName?: string | null
 ): Line[] {
   return [
-    L('KEY ACCEPTED. DECRYPTING INVITATION ...', 'dim'),
+    L('KEY ACCEPTED, DECRYPTING INVITATION ...', 'dim'),
     BLANK,
     // Named by whoever sent it, so the recipient can tell at a glance
     // whether this was meant for them or reached them by accident.
     ...(invitedName
       ? [
-          L(`WELCOME, ${invitedName.toUpperCase()}.`),
+          L(`WELCOME, ${invitedName.toUpperCase()}`),
           L('SOMEONE SAVED YOU A SPOT.'),
           BLANK,
         ]
@@ -228,26 +228,26 @@ function revealLines(
     L(`${EVENT_NAME} — ${s.edition}`),
     // What the night is, in two beats: how it travels, then how it feels.
     // Kept under the 38-character column limit.
-    L("A PARTY YOU CAN'T SEARCH FOR."),
+    L("A PARTY YOU CAN'T SEARCH FOR"),
     L('LOSE THE SIGNAL. FOLLOW THE SOUND.'),
     // Both halves can be blank while a date is still being settled; joining
     // them unconditionally would render a bare " // ".
     ...dateLine(s),
     L(s.hood),
     RULE,
-    L(`COVER: ${s.cover || FALLBACK.cover}. BAR: ${s.bar || FALLBACK.bar}.`, 'dim'),
-    L(`CAPACITY: ${capacity}. SPOTS OPEN: ${spotsRemaining}.`, 'dim'),
-    L('DJ + ADDRESS: REVEALED ON INSTAGRAM.', 'dim'),
+    L(`COVER: ${s.cover || FALLBACK.cover} // BAR: ${s.bar || FALLBACK.bar}`, 'dim'),
+    L(`CAPACITY: ${capacity} // SPOTS OPEN: ${spotsRemaining}`, 'dim'),
+    L('DJ + ADDRESS: REVEALED ON INSTAGRAM', 'dim'),
     BLANK,
     ...agendaLines(spotsRemaining === 1),
     BLANK,
-    L('KEEP READING.', 'dim'),
+    L('KEEP READING', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
-    L('2. ACCEPT, AND YOU CAN BRING ONE PERSON.'),
+    L('2. ACCEPT, AND YOU CAN BRING ONE PERSON'),
     L('   NAME THEM, THEN SEND IT'),
-    L('   STRAIGHT FROM YOUR PHONE.'),
+    L('   STRAIGHT FROM YOUR PHONE'),
     L('   PICK THE ONE YOU WANT BESIDE YOU.'),
     // A term of entry, so it sits with the other terms rather than arriving
     // as a surprise at the door. Body text, not warn — amber is danger only.
@@ -257,19 +257,19 @@ function revealLines(
     L('3. PHONE CAMERAS SEALED AT THE DOOR.'),
     L('   WE SHOOT ON DISPOSABLES —'),
     L("   STORIES ONLY, ON HYPERLINK'S"),
-    L('   INSTAGRAM, A FEW DAYS AFTER.'),
+    L('   INSTAGRAM, A FEW DAYS AFTER'),
     L('   NOT INTO IT? LET THE DOOR KNOW.'),
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
-    L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
-    L('   AGAIN, FOR YOU OR ANYONE.', 'warn'),
+    L('   PERMANENTLY — IT WILL NEVER OPEN', 'warn'),
+    L('   AGAIN, FOR YOU OR ANYONE', 'warn'),
     L('   YOUR SPOT GOES BACK IN THE POOL.', 'warn'),
     BLANK,
-    L('THE CHAIN IS THE GUEST LIST.'),
+    L('THE CHAIN IS THE GUEST LIST'),
     L('YOU ARE HOLDING A LINK.'),
     // A norm, not a rule, so it sits outside the numbered block. The pair is
     // deliberate: one line retires the job, the other retires performing for
     // the room. Matched construction so it reads as a single statement.
-    L('NOBODY CARES WHAT YOU DO OUT THERE.'),
+    L('NOBODY CARES WHAT YOU DO OUT THERE'),
     L('NOBODY CARES WHAT YOU DO IN HERE.'),
     BLANK,
     {
@@ -286,7 +286,7 @@ function revealLines(
 const CONFIRM_DECLINE: Line[] = [
   BLANK,
   L('FINAL WARNING.', 'warn'),
-  L('DECLINING KILLS THIS CODE. PERMANENTLY.', 'warn'),
+  L('DECLINING KILLS THIS CODE — PERMANENTLY', 'warn'),
   L('THERE IS NO SECOND INVITATION.'),
   {
     spans: [
@@ -300,8 +300,8 @@ const CONFIRM_DECLINE: Line[] = [
 const DECLINED_LINES: Line[] = [
   BLANK,
   L('UNDERSTOOD.'),
-  L('CODE TERMINATED.'),
-  L('THE CHAIN CLOSES AROUND THE GAP.'),
+  L('CODE TERMINATED'),
+  L('THE CHAIN CLOSES AROUND THE GAP'),
   L('FORGET THE DATE. FORGET THE NEIGHBORHOOD.'),
   L('NONE OF THIS WAS REAL.'),
   BLANK,
@@ -338,21 +338,21 @@ function namePromptLines(
       ? [
           L(`${invitedName.toUpperCase()} — AND YOUR LAST NAME?`),
           L('FIRST AND LAST: YOUR FULL NAME IS THE NAME', 'dim'),
-          L('ON THE DOOR.', 'dim'),
+          L('ON THE DOOR', 'dim'),
         ]
       : [
-          L('TYPE YOUR FULL NAME.'),
-          L('FIRST AND LAST.', 'dim'),
-          L('THIS IS THE NAME ON THE DOOR.', 'dim'),
+          L('TYPE YOUR FULL NAME'),
+          L('FIRST AND LAST', 'dim'),
+          L('THIS IS THE NAME ON THE DOOR', 'dim'),
           L('NOTHING ELSE IS.', 'dim'),
         ]),
     BLANK,
     // The final seat has nobody to invite, so their one next step is Instagram.
     ...(finalSeat
-      ? [L('(NEXT STEP: FOLLOW US ON INSTAGRAM.)', 'dim')]
+      ? [L('(NEXT STEP: FOLLOW US ON INSTAGRAM)', 'dim')]
       : [
           L('(NEXT STEPS: INVITE SOMEONE, THEN', 'dim'),
-          L(' FOLLOW US ON INSTAGRAM.)', 'dim'),
+          L(' FOLLOW US ON INSTAGRAM)', 'dim'),
         ]),
     BLANK,
   ];
@@ -368,11 +368,11 @@ function instagramNote(cfg: Settings): Line[] {
         { t: ' IS PRIVATE.' },
       ],
     },
-    L('REQUEST TO FOLLOW AND WE LET YOU IN.'),
+    L('REQUEST TO FOLLOW AND WE LET YOU IN'),
     L('FOLLOWING IS MANDATORY.'),
     L('THE ADDRESS IS THE ONLY THING WE'),
-    L('HOLD BACK. WE POST IT THERE, SEEN'),
-    L('ONLY BY PEOPLE WE APPROVED.'),
+    L('HOLD BACK — WE POST IT THERE, SEEN'),
+    L('ONLY BY PEOPLE WE APPROVED'),
     L('IF YOU ARE NOT FOLLOWING WHEN IT', 'warn'),
     L('DROPS, YOU WILL NOT KNOW WHERE.', 'warn'),
   ];
@@ -386,7 +386,7 @@ function instagramNote(cfg: Settings): Line[] {
  */
 function instagramLink(cfg: Settings): Line[] {
   return [
-    L('TAP THE GREEN LINK TO FOLLOW.'),
+    L('TAP THE GREEN LINK TO FOLLOW'),
     {
       spans: [{ t: '>> OPEN INSTAGRAM <<', href: cfg.igUrl, cls: 'cta' }],
     },
@@ -407,7 +407,7 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
     ...(s.demo ? DEMO_BANNER : []),
     ...(restored
       ? [
-          L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
+          L('SESSION RESTORED FROM LOCAL BUFFER', 'dim'),
           BLANK,
           L(`YOU ARE ALREADY IN THE CHAIN, ${s.name}.`),
         ]
@@ -420,8 +420,8 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
   const taken = s.seat ?? s.position;
   const seat: Line[] = [
     L(
-      `GUEST ${String(taken).padStart(2, '0')} OF ${s.capacity}. ` +
-        `${Math.max(0, s.capacity - taken)} SPOTS REMAIN BEHIND YOU.`
+      `GUEST ${String(taken).padStart(2, '0')} OF ${s.capacity} — ` +
+        `${Math.max(0, s.capacity - taken)} SPOTS REMAIN BEHIND YOU`
     ),
     BLANK,
   ];
@@ -431,12 +431,12 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
       ...head,
       ...seat,
       L('YOU TOOK THE FINAL SPOT.', 'warn'),
-      L('THE CHAIN ENDS WITH YOU.'),
+      L('THE CHAIN ENDS WITH YOU'),
       L('NO FURTHER INVITATIONS EXIST.'),
       BLANK,
       // Repeated on the screen guests come back to.
       L('PHONE CAMERAS SEALED AT THE DOOR.'),
-      L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
+      L('WE SHOOT ON DISPOSABLES — STORIES LATER'),
       BLANK,
       ...closingDetails(cfg),
       ...calendarLink(cfg),
@@ -453,15 +453,15 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
   return [
     ...head,
     ...seat,
-    L('YOU ARE NOW A LINK IN THE CHAIN.'),
+    L('YOU ARE NOW A LINK IN THE CHAIN'),
     L('YOU ARE OWED EXACTLY ONE INVITATION.'),
     BLANK,
     L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
     L('WHO ARE YOU BRINGING?'),
-    L('TYPE THEIR FIRST NAME. THAT IS ENOUGH.'),
+    L('TYPE THEIR FIRST NAME — THAT IS ENOUGH'),
     L('YOU PICK THEM FROM YOUR OWN CONTACTS', 'dim'),
-    L('ON THE NEXT TAP. THERE IS NO NUMBER', 'dim'),
+    L('ON THE NEXT TAP — THERE IS NO NUMBER', 'dim'),
     L('TO LOOK UP.', 'dim'),
     BLANK,
   ];
@@ -475,7 +475,7 @@ function sentLines(invitedName: string): Line[] {
     BLANK,
     L(`INVITATION PREPARED FOR ${invitedName.toUpperCase()}.`),
     L('IT SENDS FROM YOUR OWN PHONE, SO IT', 'dim'),
-    L('LANDS FROM A NUMBER THEY ALREADY KNOW.', 'dim'),
+    L('LANDS FROM A NUMBER THEY ALREADY KNOW', 'dim'),
     L('PICK THEM ON THE NEXT SCREEN.', 'dim'),
     BLANK,
   ];
@@ -500,7 +500,7 @@ function afterSendLines(
     // Same reminder on the other closing path. A guest reaches exactly one of
     // these two, so it still shows once each.
     L('PHONE CAMERAS SEALED AT THE DOOR.'),
-    L('WE SHOOT ON DISPOSABLES. STORIES LATER.'),
+    L('WE SHOOT ON DISPOSABLES — STORIES LATER'),
     BLANK,
     ...closingDetails(cfg),
     ...calendarLink(cfg),
@@ -702,7 +702,7 @@ export default function Home() {
           const animate = claimChainReveal();
           await typeLines([
             ...(saved.demo ? DEMO_BANNER : []),
-            L('SESSION RESTORED FROM LOCAL BUFFER.', 'dim'),
+            L('SESSION RESTORED FROM LOCAL BUFFER', 'dim'),
             BLANK,
             L(`YOU ARE ALREADY IN THE CHAIN, ${saved.name}.`),
             ...sentLines(saved.invitedName ?? 'YOUR GUEST'),
@@ -781,7 +781,7 @@ export default function Home() {
     } else if (res?.result === 'wrongname') {
       await typeLines([
         L('THAT IS NOT THE NAME ON THIS INVITATION.', 'warn'),
-        L('IT WAS MEANT FOR SOMEONE ELSE.', 'dim'),
+        L('IT WAS MEANT FOR SOMEONE ELSE', 'dim'),
       ]);
     } else if (res?.result === 'needverify') {
       codeRef.current = normalize(value);
@@ -790,7 +790,7 @@ export default function Home() {
     } else if (res?.result === 'wrongphone') {
       await typeLines([
         L('THAT IS NOT THE PHONE THIS WAS SENT TO.', 'warn'),
-        L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
+        L('THIS INVITATION BELONGS TO SOMEONE ELSE', 'dim'),
       ]);
     } else if (res?.result === 'valid') {
       codeRef.current = res.code;
@@ -816,8 +816,8 @@ export default function Home() {
       setPhase('end');
     } else if (res?.result === 'ratelimited') {
       await typeLines([
-        L('TOO MANY ATTEMPTS. TRACE INITIATED.', 'warn'),
-        L('COOL DOWN. TRY AGAIN LATER.', 'dim'),
+        L('TOO MANY ATTEMPTS — TRACE INITIATED', 'warn'),
+        L('COOL DOWN, TRY AGAIN LATER', 'dim'),
       ]);
     } else if (res?.result === 'error') {
       await typeLines(FAULT_LINES);
@@ -833,7 +833,7 @@ export default function Home() {
     if (digits.length !== 4) {
       await typeLines([
         L('FOUR DIGITS — THE LAST 4 OF', 'warn'),
-        L('YOUR PHONE NUMBER.', 'warn'),
+        L('YOUR PHONE NUMBER', 'warn'),
       ]);
       return;
     }
@@ -862,7 +862,7 @@ export default function Home() {
       last4Ref.current = '';
       await typeLines([
         L('THAT IS NOT THE PHONE THIS WAS SENT TO.', 'warn'),
-        L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'dim'),
+        L('THIS INVITATION BELONGS TO SOMEONE ELSE', 'dim'),
       ]);
     } else if (res?.result === 'dead') {
       await typeLines(DEAD_LINES);
@@ -871,7 +871,7 @@ export default function Home() {
       await typeLines(FULL_LINES);
       setPhase('end');
     } else if (res?.result === 'ratelimited') {
-      await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
+      await typeLines([L('TOO MANY ATTEMPTS — COOL DOWN', 'warn')]);
     } else {
       await typeLines(FAULT_LINES);
     }
@@ -886,7 +886,7 @@ export default function Home() {
     const given = value.trim();
     print([L(`> ${given}`, 'dim')]);
     if (given.length < 1) {
-      await typeLines([L('TYPE YOUR FIRST NAME.', 'warn')]);
+      await typeLines([L('TYPE YOUR FIRST NAME', 'warn')]);
       return;
     }
     claimNameRef.current = given;
@@ -915,7 +915,7 @@ export default function Home() {
       claimNameRef.current = '';
       await typeLines([
         L('THAT IS NOT THE NAME ON THIS INVITATION.', 'warn'),
-        L('IT WAS MEANT FOR SOMEONE ELSE.', 'dim'),
+        L('IT WAS MEANT FOR SOMEONE ELSE', 'dim'),
       ]);
     } else if (res?.result === 'dead') {
       await typeLines(DEAD_LINES);
@@ -924,7 +924,7 @@ export default function Home() {
       await typeLines(FULL_LINES);
       setPhase('end');
     } else if (res?.result === 'ratelimited') {
-      await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
+      await typeLines([L('TOO MANY ATTEMPTS — COOL DOWN', 'warn')]);
     } else {
       await typeLines(FAULT_LINES);
     }
@@ -945,7 +945,7 @@ export default function Home() {
       await typeLines(CONFIRM_DECLINE);
       setPhase('confirmDecline');
     } else {
-      await typeLines([L('UNRECOGNIZED. ACCEPT OR DECLINE. THERE IS NO MAYBE.')]);
+      await typeLines([L('UNRECOGNIZED — ACCEPT OR DECLINE. THERE IS NO MAYBE.')]);
     }
   }
 
@@ -977,7 +977,7 @@ export default function Home() {
     }
     await typeLines([
       L('TYPE DECLINE TO CONFIRM,'),
-      L('OR ACCEPT TO RECONSIDER.'),
+      L('OR ACCEPT TO RECONSIDER'),
     ]);
   }
 
@@ -1017,7 +1017,7 @@ export default function Home() {
     const who = value.trim().replace(/\s+/g, ' ');
     print([L(`> ${who}`, 'dim')]);
     if (who.length < 1) {
-      await typeLines([L('GIVE ME A NAME.', 'warn')]);
+      await typeLines([L('GIVE ME A NAME', 'warn')]);
       return;
     }
     const sess = sessionRef.current;
@@ -1062,7 +1062,7 @@ export default function Home() {
         spans: [
           { t: 'OR ', cls: 'dim' },
           { t: '[COPY THE INVITATION]', act: 'copy-message' },
-          { t: ' AND SEND IT HOWEVER YOU LIKE.', cls: 'dim' },
+          { t: ' AND SEND IT HOWEVER YOU LIKE', cls: 'dim' },
         ],
       },
     ]);
@@ -1078,7 +1078,7 @@ export default function Home() {
     const name = invited ? `${invited} ${typed}`.trim() : typed;
     const floor = invited ? 1 : 2;
     if (typed.length < floor) {
-      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
+      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR', 'warn')]);
       return;
     }
     if (name.length > 60) {
@@ -1131,13 +1131,13 @@ export default function Home() {
       await typeLines(DEAD_LINES);
       setPhase('end');
     } else if (res?.result === 'badname') {
-      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
+      await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR', 'warn')]);
     } else if (res?.result === 'wrongphone') {
       setProgress(null);
       await typeLines([L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'warn')]);
       setPhase('end');
     } else if (res?.result === 'ratelimited') {
-      await typeLines([L('TOO MANY ATTEMPTS. COOL DOWN.', 'warn')]);
+      await typeLines([L('TOO MANY ATTEMPTS — COOL DOWN', 'warn')]);
     } else {
       // Includes 'error' — stay on the name prompt so they can retransmit.
       await typeLines(FAULT_LINES);
@@ -1184,7 +1184,7 @@ export default function Home() {
           print([L('SENT.', 'dim')]);
         } catch {
           // Dismissing the sheet lands here too, so stay neutral.
-          print([L('NOT SENT YET. TAP AGAIN WHEN READY.', 'dim')]);
+          print([L('NOT SENT YET — TAP AGAIN WHEN READY', 'dim')]);
         }
         await revealAfterSend();
         return;
@@ -1219,10 +1219,10 @@ export default function Home() {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      print([L('COPIED. PASTE IT INTO A MESSAGE TO THEM.', 'dim')]);
+      print([L('COPIED — PASTE IT INTO A MESSAGE TO THEM', 'dim')]);
     } catch {
       print([
-        L('CLIPBOARD REFUSED. SEND THIS BY HAND:', 'warn'),
+        L('CLIPBOARD REFUSED — SEND THIS BY HAND:', 'warn'),
         ...text.split('\n').map((line) => L(line, 'dim')),
       ]);
     }

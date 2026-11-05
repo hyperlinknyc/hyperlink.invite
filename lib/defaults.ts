@@ -12,7 +12,7 @@ export const DEFAULTS = {
   eventDate: 'SEPTEMBER',
   eventTime: 'DATE TO FOLLOW',
   hood: 'EAST WILLIAMSBURG, BROOKLYN',
-  // The door terms, shown as "COVER: <cover>. BAR: <bar>."
+  // The door terms, shown as "COVER: <cover> // BAR: <bar>"
   cover: 'NONE',
   bar: 'BYOB',
   igHandle: '@hyperlink.nyc',
