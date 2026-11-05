@@ -316,10 +316,12 @@ function namePromptLines(
     ...(invitedName
       ? [
           L(`${invitedName.toUpperCase()} — AND YOUR LAST NAME?`),
-          L('THAT IS THE NAME ON THE DOOR.', 'dim'),
+          L('FIRST AND LAST: YOUR FULL NAME IS THE NAME', 'dim'),
+          L('ON THE DOOR.', 'dim'),
         ]
       : [
-          L('WHAT DO WE CALL YOU?'),
+          L('TYPE YOUR FULL NAME.'),
+          L('FIRST AND LAST.', 'dim'),
           L('THIS IS THE NAME ON THE DOOR.', 'dim'),
           L('NOTHING ELSE IS.', 'dim'),
         ]),
@@ -1202,7 +1204,9 @@ export default function Home() {
     );
   const prompt =
     phase === 'name'
-      ? 'NAME > '
+      ? invitedNameRef.current
+        ? 'LAST NAME > '
+        : 'FULL NAME > '
       : phase === 'invitee'
         ? 'THEIR FIRST NAME > '
         : phase === 'claimname'
