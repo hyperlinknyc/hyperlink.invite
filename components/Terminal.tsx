@@ -19,6 +19,8 @@ export type Line = {
   animate?: boolean;
   /** Logo only: ms it holds the brand green before it moves. */
   hold?: number;
+  /** Logo only: play the power-on flash-and-glitch as it appears. */
+  glitch?: boolean;
   /** Logo only: called once it has reached the chain colour. */
   onSettled?: () => void;
   /** Inline colour for the whole line. Only the chain label uses it. */
@@ -31,6 +33,7 @@ export type Line = {
 export const L = (t: string, cls?: string): Line => ({ spans: [{ t }], cls });
 export const BLANK: Line = { spans: [{ t: '' }] };
 export const LOGO: Line = { spans: [{ t: '' }], logo: true };
+export const GLITCH_LOGO: Line = { spans: [{ t: '' }], logo: true, glitch: true };
 
 export function useTypewriter() {
   const [done, setDone] = useState<Line[]>([]);
@@ -208,6 +211,7 @@ export function Screen({
               chain={line.chain}
               animate={line.animate}
               hold={line.hold}
+              glitch={line.glitch}
               onSettled={line.onSettled}
             />
           ) : (

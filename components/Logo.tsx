@@ -62,11 +62,13 @@ export function Logo({
   chain,
   animate = false,
   hold = CHAIN_HOLD_MS,
+  glitch = false,
   onSettled,
 }: {
   chain?: ChainColor;
   animate?: boolean;
   hold?: number;
+  glitch?: boolean;
   onSettled?: () => void;
 }) {
   const ref = useRef<SVGSVGElement>(null);
@@ -135,7 +137,7 @@ export function Logo({
   }, [chain, animate, hold]);
 
   return (
-    <div className="logo-wrap" aria-hidden="true">
+    <div className={glitch ? 'logo-wrap logo-glitch' : 'logo-wrap'} aria-hidden="true">
       <svg
         ref={ref}
         className="logo"
