@@ -1,7 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef } from 'react';
-import type { ChainColor } from '@/lib/config';
+import { CHAIN_PALETTE, type ChainColor } from '@/lib/config';
 import { colorPath, hexToOklch, hexToRgb, oklabDistance, oklchToRgb } from '@/lib/oklch';
 
 /** How long the mark takes to travel from the brand green to a chain colour. */
@@ -12,6 +12,12 @@ export const CHAIN_TRANSITION_MS = 1600;
  *  CHAIN_TRANSITION_MS is the whole reveal, 2s, and it is also how long a guest
  *  waits for the Instagram link, which prints only after the colour settles. */
 export const CHAIN_HOLD_MS = 400;
+
+/** The opening sequence: the mark flashes up and holds, glitches through every
+ *  chain colour, then goes away. Times in ms; the page waits for all of it. */
+export const INTRO_FLASH_MS = 1000;
+export const INTRO_GLITCH_MS = 1600;
+export const INTRO_MS = INTRO_FLASH_MS + INTRO_GLITCH_MS + 120;
 
 /** Halo strength while the mark is still green. It is not a link, and bright
  *  green glow beside a green link read as two things to tap, so it waits at a
@@ -72,6 +78,7 @@ export function Logo({
   onSettled?: () => void;
 }) {
   const ref = useRef<SVGSVGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const settledRef = useRef(onSettled);
   settledRef.current = onSettled;
 
@@ -136,8 +143,40 @@ export function Logo({
     return () => cancelAnimationFrame(raf);
   }, [chain, animate, hold]);
 
+  // Opening sequence. Three beats: flash up and hold in the brand green,
+  // glitch through every chain colour, go away.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const wrap = wrapRef.current;
+    if (!glitch || !el || !wrap) return;
+    const colors = CHAIN_PALETTE.map((c) => ({ rgb: hexToRgb(c.hex), glow: c.glow }));
+    const css = (c: { rgb: number[] }) => `rgb(${c.rgb.join(', ')})`;
+    paint(el, colors[0].rgb, colors[0].glow);
+    wrap.classList.add('logo-flicker');
+    let i = 0;
+    const start = performance.now();
+    const tick = () => {
+      const t = performance.now() - start;
+      if (t >= INTRO_FLASH_MS + INTRO_GLITCH_MS) {
+        wrap.classList.remove('logo-glitching');
+        wrap.classList.add('logo-gone');
+        return;
+      }
+      if (t >= INTRO_FLASH_MS) {
+        wrap.classList.add('logo-glitching');
+        i += 1;
+        const c = colors[i % colors.length];
+        wrap.style.setProperty('--g1', css(colors[(i + 2) % colors.length]));
+        wrap.style.setProperty('--g2', css(colors[(i + 4) % colors.length]));
+        paint(el, c.rgb, c.glow);
+      }
+    };
+    const id = setInterval(tick, 105);
+    return () => clearInterval(id);
+  }, [glitch]);
+
   return (
-    <div className={glitch ? 'logo-wrap logo-glitch' : 'logo-wrap'} aria-hidden="true">
+    <div ref={wrapRef} className="logo-wrap" aria-hidden="true">
       <svg
         ref={ref}
         className="logo"

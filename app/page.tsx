@@ -9,13 +9,11 @@ import {
   Screen,
   useTypewriter,
 } from '@/components/Terminal';
-import { Logo } from '@/components/Logo';
+import { INTRO_MS, Logo } from '@/components/Logo';
 import { DEFAULTS } from '@/lib/defaults';
 import type { ChainColor } from '@/lib/config';
 
 const EVENT_NAME = 'HYPERLINK';
-// How long the opening logo flashes and glitches before any text prints.
-const GLITCH_MS = 1900;
 // Pause before the keyboard rises on its own, so the prompt can be read first.
 const KEYBOARD_DELAY_MS = 1000;
 
@@ -592,7 +590,7 @@ export default function Home() {
       // code starts to print.
       if (!reducedMotion()) {
         setIntro(true);
-        await new Promise<void>((r) => setTimeout(r, GLITCH_MS));
+        await new Promise<void>((r) => setTimeout(r, INTRO_MS));
         setIntro(false);
         await new Promise<void>((r) => setTimeout(r, 250)); // overlay fade-out
       }

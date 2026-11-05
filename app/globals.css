@@ -279,41 +279,49 @@ a.cta:active {
   transition: none;
 }
 
-/* Power-on glitch: the mark flashes up, tears, splits into red/blue ghosts and
-   locks in, before any text prints. Lives on the wrapper so it never fights the
-   inline colour/filter the chain reveal paints on the svg. */
-.logo-glitch {
-  animation: logo-glitch 1.7s steps(1, end) both;
+/* Opening sequence, three beats on the wrapper (the svg keeps the colour):
+   flash up, glitch through every chain colour, go away. --g1/--g2 are the
+   ghost-edge colours, set from the chain palette as it cycles. */
+.logo-flicker {
+  animation: logo-flicker 0.4s steps(1, end) both;
+}
+@keyframes logo-flicker {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  35%  { opacity: 0; }
+  55%  { opacity: 1; }
+  65%  { opacity: 0.25; }
+  80%  { opacity: 1; }
 }
 
+.logo-glitching {
+  animation: logo-glitch 0.62s steps(1, end) infinite;
+}
 @keyframes logo-glitch {
-  0%   { opacity: 0; }
-  6%   { opacity: 1; transform: translateX(-6px) skewX(12deg);
-         filter: drop-shadow(5px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(-5px 0 0 rgba(40, 140, 255, 0.9)); }
-  11%  { opacity: 0; transform: none; filter: none; }
-  16%  { opacity: 1; transform: translateX(8px);
-         clip-path: inset(0 0 58% 0);
-         filter: drop-shadow(-4px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(4px 0 0 rgba(40, 140, 255, 0.9)); }
-  22%  { opacity: 0.15; clip-path: none; transform: none; filter: none; }
-  28%  { opacity: 1; transform: translateX(-10px) skewX(-14deg);
-         clip-path: inset(42% 0 0 0);
-         filter: drop-shadow(6px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(-6px 0 0 rgba(40, 140, 255, 0.9)); }
-  36%  { opacity: 0; clip-path: none; transform: none; filter: none; }
-  42%  { opacity: 1; transform: translateX(3px);
-         filter: brightness(2.2) drop-shadow(3px 0 0 rgba(255, 40, 80, 0.8)); }
-  50%  { opacity: 0.3; transform: none; filter: none; }
-  58%  { opacity: 1; transform: translateX(-4px) skewX(6deg); clip-path: inset(20% 0 35% 0);
-         filter: drop-shadow(-4px 0 0 rgba(40, 140, 255, 0.9)); }
-  66%  { opacity: 1; clip-path: none; transform: none; filter: brightness(1.8); }
-  74%  { opacity: 0.4; filter: none; }
-  82%  { opacity: 1; transform: translateX(2px); filter: drop-shadow(2px 0 0 rgba(255, 40, 80, 0.7)); }
-  90%  { opacity: 1; transform: none; filter: brightness(1.4); }
-  100% { opacity: 1; transform: none; filter: none; clip-path: none; }
+  0%   { transform: translateX(-6px) skewX(12deg);
+         filter: drop-shadow(5px 0 0 var(--g1)) drop-shadow(-5px 0 0 var(--g2)); }
+  10%  { transform: none; filter: none; opacity: 0.2; }
+  18%  { opacity: 1; transform: translateX(8px); clip-path: inset(0 0 58% 0);
+         filter: drop-shadow(-4px 0 0 var(--g1)) drop-shadow(4px 0 0 var(--g2)); }
+  30%  { clip-path: none; transform: none; filter: none; }
+  42%  { transform: translateX(-10px) skewX(-14deg); clip-path: inset(42% 0 0 0);
+         filter: drop-shadow(6px 0 0 var(--g1)) drop-shadow(-6px 0 0 var(--g2)); }
+  52%  { clip-path: none; transform: none; opacity: 0; filter: none; }
+  58%  { opacity: 1; transform: translateX(3px);
+         filter: brightness(2) drop-shadow(3px 0 0 var(--g1)); }
+  70%  { transform: translateX(-4px) skewX(6deg); clip-path: inset(20% 0 35% 0);
+         filter: drop-shadow(-4px 0 0 var(--g2)); }
+  82%  { clip-path: none; transform: none; filter: brightness(1.6); }
+  92%  { transform: translateX(2px); filter: drop-shadow(2px 0 0 var(--g1)); }
+}
+
+.logo-gone {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .logo { animation: none; }
-  .logo-glitch { animation: none; }
+  .logo-flicker, .logo-glitching { animation: none; }
 }
 
 /* The chain's name beneath the mark, in the chain's colour (set inline).
