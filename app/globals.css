@@ -263,7 +263,11 @@ a.cta:active {
 /* Full-screen stage for the opening glitch: logo alone, centred both ways. */
 .intro {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* --vvh tracks the visible area, so the mark stays centred above the keyboard. */
+  height: var(--vvh, 100dvh);
   z-index: 50;
   display: flex;
   align-items: center;
@@ -277,6 +281,20 @@ a.cta:active {
   opacity: 1;
   pointer-events: auto;
   transition: none;
+}
+
+/* The gate shown before anything runs: the line is ringing, tap to pick up. */
+.gate {
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.gate-cta {
+  margin-top: 0.6em;
+  animation: blink 1.4s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gate-cta { animation: none; }
 }
 
 /* Opening sequence, three beats on the wrapper (the svg keeps the colour):

@@ -529,7 +529,12 @@ export default function Home() {
     setPhaseState(p);
   };
   const [input, setInput] = useState('');
+  // The terminal opens on a gate. Phones only raise the keyboard from code
+  // inside a tap, so this tap — dressed as answering the incoming call — is
+  // where the input is focused. It stays mounted, so the keyboard stays up.
+  const [gate, setGate] = useState(true);
   const [intro, setIntro] = useState(false);
+  const answerRef = useRef<() => void>(() => {});
   const inputRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef('');
   const sessionRef = useRef<Session | null>(null);
@@ -557,6 +562,9 @@ export default function Home() {
     bootedRef.current = true;
     (async () => {
       const statusP = fetch('/api/status').then((r) => r.json()).catch(() => null);
+      const answered = new Promise<void>((r) => {
+        answerRef.current = r;
+      });
 
       // Dev-only: /?chainPreview=BLUE plays the closing screen in that chain's
       // colour without spending a code. NODE_ENV is inlined at build time, so
@@ -564,6 +572,7 @@ export default function Home() {
       if (process.env.NODE_ENV !== 'production') {
         const want = new URLSearchParams(window.location.search).get('chainPreview');
         if (want) {
+          setGate(false);
           const status = await statusP;
           if (status?.settings) settingsRef.current = status.settings;
           const { CHAIN_PALETTE, chainColor } = await import('@/lib/config');
@@ -584,6 +593,10 @@ export default function Home() {
           return;
         }
       }
+
+      // Hold on the gate until the guest answers (see `gate` above).
+      await answered;
+      setGate(false);
 
       // The mark powers on first, alone and centred on the screen — flash,
       // tear, lock in — so the page reads as a real, branded thing before any
@@ -1207,7 +1220,25 @@ export default function Home() {
   return (
     <>
     {/* Opening glitch: the mark alone, dead centre, before any text. */}
-    <div className={`intro${intro ? ' on' : ''}`} aria-hidden="true">
+    <div
+      className={`intro${gate || intro ? ' on' : ''}`}
+      aria-hidden={!gate}
+      onClick={
+        gate
+          ? () => {
+              // Inside the tap: this is what lets the keyboard come up.
+              inputRef.current?.focus();
+              answerRef.current();
+            }
+          : undefined
+      }
+    >
+      {gate && (
+        <div className="gate">
+          <div className="line dim">INCOMING CARRIER ..... 300 BAUD</div>
+          <div className="line gate-cta">[ TAP TO ANSWER ]</div>
+        </div>
+      )}
       {intro && <Logo glitch />}
     </div>
     <Screen
