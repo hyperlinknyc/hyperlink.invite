@@ -35,6 +35,38 @@ export const BLANK: Line = { spans: [{ t: '' }] };
 export const LOGO: Line = { spans: [{ t: '' }], logo: true };
 export const GLITCH_LOGO: Line = { spans: [{ t: '' }], logo: true, glitch: true };
 
+/** Where a first-time guest is in the flow: step n of total. */
+export type Progress = { step: number; total: number };
+
+/** Rough seconds left, by how many steps remain (this one included). */
+const SECS_LEFT = [0, 10, 25, 40, 50];
+
+/**
+ * The pinned strip above the log. Steps are counted, not timed, so the bar
+ * never moves backwards; the time is a fixed rough guess per step.
+ */
+function ProgressStrip({ step, total }: Progress) {
+  const left = SECS_LEFT[Math.min(total - step + 1, SECS_LEFT.length - 1)];
+  return (
+    <div
+      className="progress"
+      role="progressbar"
+      aria-label="Invitation progress"
+      aria-valuemin={1}
+      aria-valuemax={total}
+      aria-valuenow={step}
+      aria-valuetext={`Step ${step} of ${total}, about ${left} seconds left`}
+    >
+      <span className="progress-bar" aria-hidden="true">
+        {'■'.repeat(step)}
+        <span className="progress-off">{'□'.repeat(total - step)}</span>
+      </span>
+      <span aria-hidden="true">{`STEP ${step} OF ${total}`}</span>
+      <span className="dim" aria-hidden="true">{`~${left} SEC LEFT`}</span>
+    </div>
+  );
+}
+
 export function useTypewriter() {
   const [done, setDone] = useState<Line[]>([]);
   const [current, setCurrent] = useState<{ line: Line; n: number } | null>(null);
@@ -161,6 +193,7 @@ export function Screen({
   current,
   inputLine,
   hint,
+  progress,
   onAct,
   onTap,
   onSubmit,
@@ -172,6 +205,8 @@ export function Screen({
   inputLine: { prompt: string; value: string } | null;
   /** Shown under the input line when the guest may not realise they can type. */
   hint?: string | null;
+  /** First-time path only. Null for returning guests and dead ends. */
+  progress?: Progress | null;
   onAct?: (act: string) => void;
   onTap?: () => void;
   /** Tapped confirm. iOS numeric keypads have no return key, so a visible
@@ -206,6 +241,7 @@ export function Screen({
 
   return (
     <div className="crt" onClick={onTap}>
+      {progress && <ProgressStrip {...progress} />}
       <div className="log" ref={logRef}>
         {done.map((line, i) =>
           line.logo ? (
