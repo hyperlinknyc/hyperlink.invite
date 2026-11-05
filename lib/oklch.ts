@@ -95,7 +95,7 @@ const lerp = (x: number, y: number, t: number) => x + (y - x) * t;
  * The path from one colour to another, as t from 0 to 1. Never a hue sweep.
  *
  * A straight line in OKLab is the plainest gradient, and for close colours
- * (green to cyan, to blue) it stays vivid. For colours near opposite — green
+ * (green to yellow, to blue) it stays vivid. For colours near opposite — green
  * to pink — the line collapses to a dull tan in the middle, so there the path
  * goes through a pale neutral instead: the first colour drains away, then the
  * second fills in, and no third colour is ever shown. Which one applies is
