@@ -119,6 +119,34 @@ a {
   .cursor { animation: none !important; }
 }
 
+/* ── progress strip ────────────────────────────────────────────── */
+
+.progress {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 8px
+    calc(16px + env(safe-area-inset-left));
+  border-bottom: 1px solid var(--faint);
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  position: relative;
+  z-index: 2;
+}
+.progress-bar {
+  color: var(--green);
+  letter-spacing: 0.12em;
+}
+.progress-off {
+  color: var(--faint);
+}
+/* The strip already clears the notch, so the log below it needn't. */
+.progress + .log {
+  padding-top: 12px;
+}
+
 /* ── log ───────────────────────────────────────────────────────── */
 
 .log {

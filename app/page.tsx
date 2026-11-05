@@ -6,6 +6,7 @@ import {
   L,
   LOGO,
   Line,
+  Progress,
   Screen,
   useTypewriter,
 } from '@/components/Terminal';
@@ -177,6 +178,26 @@ const DEMO_BANNER: Line[] = [
   BLANK,
 ];
 
+/**
+ * What the next minute holds, shown once on the invitation screen. The
+ * pinned strip counts against this same list. The final seat has nobody to
+ * bring, so theirs is one step shorter. No full stops in the list itself;
+ * the single one is saved for the last line.
+ */
+function agendaLines(finalSeat: boolean): Line[] {
+  const steps = [
+    'ACCEPT THE INVITE',
+    'PUT YOUR NAME ON THE DOOR',
+    ...(finalSeat ? [] : ['BRING ONE PERSON']),
+    'FOLLOW US ON INSTAGRAM',
+  ];
+  return [
+    L(`${steps.length} STEPS — ABOUT A MINUTE`),
+    ...steps.map((t, i) => L(`  ${i + 1}  ${t}`)),
+    L("THAT'S IT.", 'dim'),
+  ];
+}
+
 function revealLines(
   spotsRemaining: number,
   capacity: number,
@@ -217,6 +238,9 @@ function revealLines(
     L(`COVER: ${s.cover || FALLBACK.cover}. BAR: ${s.bar || FALLBACK.bar}.`, 'dim'),
     L(`CAPACITY: ${capacity}. SPOTS OPEN: ${spotsRemaining}.`, 'dim'),
     L('DJ + ADDRESS: REVEALED ON INSTAGRAM.', 'dim'),
+    BLANK,
+    ...agendaLines(spotsRemaining === 1),
+    BLANK,
     L('KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
@@ -534,6 +558,11 @@ export default function Home() {
     setPhaseState(p);
   };
   const [input, setInput] = useState('');
+  // Step n of total for a first-time guest; null everywhere else (returning
+  // guests, declined or dead codes), so the strip never shows for them.
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const goStep = (step: number) =>
+    setProgress({ step, total: finalSeatRef.current ? 3 : 4 });
   // After the opening logo comes a gate. Phones only raise the keyboard from
   // code inside a tap, so this tap — dressed as answering the incoming call —
   // is where the input takes focus. It stays mounted and focused, with its
@@ -768,6 +797,7 @@ export default function Home() {
       demoRef.current = !!res.demo;
       invitedNameRef.current = res.invitedName ?? null;
       finalSeatRef.current = res.spotsRemaining === 1;
+      goStep(1);
       await typeLines(
         revealLines(
           res.spotsRemaining,
@@ -814,6 +844,7 @@ export default function Home() {
       demoRef.current = !!res.demo;
       invitedNameRef.current = res.invitedName ?? null;
       finalSeatRef.current = res.spotsRemaining === 1;
+      goStep(1);
       await typeLines(
         revealLines(
           res.spotsRemaining,
@@ -868,6 +899,7 @@ export default function Home() {
     if (res?.result === 'valid') {
       invitedNameRef.current = res.invitedName ?? null;
       finalSeatRef.current = res.spotsRemaining === 1;
+      goStep(1);
       demoRef.current = !!res.demo;
       await typeLines(
         revealLines(
@@ -902,6 +934,7 @@ export default function Home() {
     const v = value.toUpperCase();
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
+      goStep(2);
       await typeLines(namePromptLines(
           settingsRef.current,
           invitedNameRef.current,
@@ -921,6 +954,7 @@ export default function Home() {
     print([L(`> ${v}`, 'dim')]);
     if (['ACCEPT', 'A', 'YES', 'Y'].includes(v)) {
       await typeLines([L('RECONSIDERED. WISE.', 'dim')]);
+      goStep(2);
       await typeLines(namePromptLines(
           settingsRef.current,
           invitedNameRef.current,
@@ -936,6 +970,7 @@ export default function Home() {
         await typeLines(FAULT_LINES);
         return;
       }
+      setProgress(null);
       await typeLines(res?.result === 'declined' ? DECLINED_LINES : DEAD_LINES);
       setPhase('end');
       return;
@@ -996,6 +1031,7 @@ export default function Home() {
       return;
     }
     if (res?.result !== 'named') {
+      setProgress(null);
       await typeLines(DEAD_LINES);
       setPhase('end');
       return;
@@ -1077,11 +1113,13 @@ export default function Home() {
       // it after sending their invitation.
       const animate = session.childCode ? false : claimChainReveal();
       saveSession();
+      goStep(3);
       await typeLines(payoffLines(session, false, animate));
       // The final guest gets no child code — payoffLines already closes them
       // out, so there is nobody for them to name.
       setPhase(session.childCode ? 'invitee' : 'end');
     } else if (res?.result === 'full') {
+      setProgress(null);
       await typeLines([
         L('THE LAST SPOT WAS TAKEN', 'warn'),
         L('WHILE YOU HESITATED.', 'warn'),
@@ -1089,11 +1127,13 @@ export default function Home() {
       ]);
       setPhase('end');
     } else if (res?.result === 'dead') {
+      setProgress(null);
       await typeLines(DEAD_LINES);
       setPhase('end');
     } else if (res?.result === 'badname') {
       await typeLines([L('GIVE ME SOMETHING TO PUT ON THE DOOR.', 'warn')]);
     } else if (res?.result === 'wrongphone') {
+      setProgress(null);
       await typeLines([L('THIS INVITATION BELONGS TO SOMEONE ELSE.', 'warn')]);
       setPhase('end');
     } else if (res?.result === 'ratelimited') {
@@ -1166,6 +1206,7 @@ export default function Home() {
   async function revealAfterSend() {
     if (revealedRef.current) return;
     revealedRef.current = true;
+    goStep(4);
     const animate = claimChainReveal();
     await typeLines(
       afterSendLines(settingsRef.current, sessionRef.current?.chain, animate)
@@ -1284,6 +1325,7 @@ export default function Home() {
       current={current}
       inputLine={awaiting ? { prompt, value: input } : null}
       hint={hint}
+      progress={progress}
       onAct={onAct}
       onSubmit={awaiting ? () => submit(input) : undefined}
       onTap={() => {
