@@ -190,7 +190,11 @@ function revealLines(
     // Named by whoever sent it, so the recipient can tell at a glance
     // whether this was meant for them or reached them by accident.
     ...(invitedName
-      ? [L(`WELCOME, ${invitedName.toUpperCase()}.`), BLANK]
+      ? [
+          L(`WELCOME, ${invitedName.toUpperCase()}.`),
+          L('SOMEONE SAVED YOU A SPOT.'),
+          BLANK,
+        ]
       : []),
     ...(demo ? DEMO_BANNER : []),
     /* The event details are the one thing a guest actually needs to carry
@@ -201,14 +205,19 @@ function revealLines(
        is danger only and `cta` belongs to Instagram. */
     RULE,
     L(`${EVENT_NAME} — ${s.edition}`),
+    // What the night is, in two beats: how it travels, then how it feels.
+    // Kept under the 38-character column limit.
+    L("A PARTY YOU CAN'T SEARCH FOR."),
+    L('LOSE THE SIGNAL. FOLLOW THE SOUND.'),
     // Both halves can be blank while a date is still being settled; joining
     // them unconditionally would render a bare " // ".
     ...dateLine(s),
     L(s.hood),
     RULE,
     L(`COVER: ${s.cover || FALLBACK.cover}. BAR: ${s.bar || FALLBACK.bar}.`, 'dim'),
-    L(`CAPACITY: ${capacity}. SEATS OPEN: ${spotsRemaining}.`, 'dim'),
-    L('ADDRESS: WITHHELD FOR NOW. KEEP READING.', 'dim'),
+    L(`CAPACITY: ${capacity}. SPOTS OPEN: ${spotsRemaining}.`, 'dim'),
+    L('DJ + ADDRESS: REVEALED ON INSTAGRAM.', 'dim'),
+    L('KEEP READING.', 'dim'),
     BLANK,
     L('THE RULES:'),
     L('1. THIS CODE ADMITS YOU. ONLY YOU.'),
@@ -229,7 +238,7 @@ function revealLines(
     L('4. DECLINE, AND THIS CODE DIES.', 'warn'),
     L('   PERMANENTLY. IT WILL NEVER OPEN', 'warn'),
     L('   AGAIN, FOR YOU OR ANYONE.', 'warn'),
-    L('   YOUR SEAT GOES BACK IN THE POOL.', 'warn'),
+    L('   YOUR SPOT GOES BACK IN THE POOL.', 'warn'),
     BLANK,
     L('THE CHAIN IS THE GUEST LIST.'),
     L('YOU ARE HOLDING A LINK.'),
@@ -388,7 +397,7 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
   const seat: Line[] = [
     L(
       `GUEST ${String(taken).padStart(2, '0')} OF ${s.capacity}. ` +
-        `${Math.max(0, s.capacity - taken)} SEATS REMAIN BEHIND YOU.`
+        `${Math.max(0, s.capacity - taken)} SPOTS REMAIN BEHIND YOU.`
     ),
     BLANK,
   ];
@@ -397,7 +406,7 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
     return [
       ...head,
       ...seat,
-      L('YOU TOOK THE FINAL SEAT.', 'warn'),
+      L('YOU TOOK THE FINAL SPOT.', 'warn'),
       L('THE CHAIN ENDS WITH YOU.'),
       L('NO FURTHER INVITATIONS EXIST.'),
       BLANK,
@@ -1074,7 +1083,7 @@ export default function Home() {
       setPhase(session.childCode ? 'invitee' : 'end');
     } else if (res?.result === 'full') {
       await typeLines([
-        L('THE LAST SEAT WAS TAKEN', 'warn'),
+        L('THE LAST SPOT WAS TAKEN', 'warn'),
         L('WHILE YOU HESITATED.', 'warn'),
         ...FULL_LINES,
       ]);
