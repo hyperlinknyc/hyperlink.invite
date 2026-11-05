@@ -23,6 +23,10 @@ const SCHEMA: Stmt[] = [
   // next_position only ever climbs, so a freed seat never hands the next
   // arrival a chain number that is already taken.
   `ALTER TABLE event_state ADD COLUMN IF NOT EXISTS next_position INT NOT NULL DEFAULT 0`,
+  // A random token that changes whenever a world is wiped. Browsers stamp it
+  // into the session they save on accept; a different token at the next visit
+  // means that session belongs to a world that no longer exists.
+  `ALTER TABLE event_state ADD COLUMN IF NOT EXISTS epoch TEXT NOT NULL DEFAULT ''`,
   [
     `INSERT INTO event_state (id, accepted_count, capacity)
      VALUES ($1, 0, $2) ON CONFLICT (id) DO NOTHING`,
@@ -33,6 +37,12 @@ const SCHEMA: Stmt[] = [
      VALUES ($1, 0, $2) ON CONFLICT (id) DO NOTHING`,
     [WORLD_DEMO, DEFAULTS.demoCapacity],
   ],
+  // Fill blanks (new rows, and installs that predate the column). Only ever
+  // touches ''; an existing epoch survives restarts, or every redeploy would
+  // log everyone out.
+  `UPDATE event_state
+   SET epoch = md5(random()::text || clock_timestamp()::text || id::text)
+   WHERE epoch = ''`,
 
   // ── codes ──────────────────────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS codes (

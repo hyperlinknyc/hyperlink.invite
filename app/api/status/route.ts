@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server';
-import { worldState } from '@/lib/invites';
+import { worldState, worldEpoch } from '@/lib/invites';
 import { getSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
 // Boot payload for the terminal: live-world occupancy plus the event copy.
 export async function GET() {
-  const [state, settings] = await Promise.all([worldState(), getSettings()]);
+  const [state, settings, epoch] = await Promise.all([
+    worldState(),
+    getSettings(),
+    worldEpoch(),
+  ]);
   return NextResponse.json({
+    // Changes when the live world is purged, so browsers can drop sessions
+    // that belonged to the old one.
+    epoch,
     full: state.full,
     accepted: state.accepted,
     capacity: state.capacity,

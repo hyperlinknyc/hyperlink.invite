@@ -61,6 +61,8 @@ type Session = {
   capacity: number;
   childCode: string | null;
   demo?: boolean;
+  /** The world's epoch when they got in; a purge changes it. Absent on sessions saved before epochs. */
+  epoch?: string;
   settings?: Settings;
   // Set once their one invitation has been addressed to someone.
   inviteSent?: boolean;
@@ -588,6 +590,42 @@ export default function Home() {
       try {
         saved = JSON.parse(localStorage.getItem('hl_session') ?? 'null');
       } catch {}
+
+      // Share links arrive as /?c=CODE.
+      const c = new URLSearchParams(window.location.search).get('c');
+      const linkCode = c ? c.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+
+      // A link to some other code wins over the saved session: they came to
+      // use that code. The saved session stays on the device untouched until
+      // the new code is actually accepted (which overwrites it), so a guest
+      // who just peeks at a friend's link doesn't lose their own seat.
+      // Their own child code is the exception — that is still them.
+      if (
+        saved?.code &&
+        linkCode &&
+        linkCode !== saved.code &&
+        linkCode !== saved.childCode
+      ) {
+        saved = null;
+      }
+
+      // Never trust the local copy blindly. A purge, revoke or kill happens on
+      // the server and cannot reach this device, so ask before replaying it.
+      // A node that doesn't answer isn't proof of anything: keep the session.
+      if (saved?.code) {
+        const worldChanged =
+          !!saved.epoch && !!status?.epoch && saved.epoch !== status.epoch;
+        const check = worldChanged
+          ? { result: 'gone' }
+          : await api('/api/session', { code: saved.code, epoch: saved.epoch });
+        if (check?.result === 'gone') {
+          try {
+            localStorage.removeItem('hl_session');
+          } catch {}
+          saved = null;
+        }
+      }
+
       if (saved?.code) {
         // Replay with the event details as they stand now — the date and the
         // neighbourhood are edited from admin after people accept. The copy
@@ -617,9 +655,6 @@ export default function Home() {
         return;
       }
 
-      // Share links arrive as /?c=CODE.
-      const c = new URLSearchParams(window.location.search).get('c');
-
       // Only seal the door for someone arriving empty-handed. A code in hand
       // gets validated on its own terms — that's what keeps demo codes usable
       // after the real party has filled, and a real code still hears 'full'.
@@ -633,7 +668,7 @@ export default function Home() {
       setPhase('code');
 
       if (c) {
-        const clean = c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+        const clean = linkCode.slice(0, 12);
         for (let i = 1; i <= clean.length; i++) {
           setInput(clean.slice(0, i));
           await new Promise((r) => setTimeout(r, 55));
@@ -996,6 +1031,7 @@ export default function Home() {
         capacity: res.capacity,
         childCode: res.childCode,
         demo: !!res.demo,
+        epoch: res.epoch,
         settings: settingsRef.current,
         chain: res.chain ?? null,
       };

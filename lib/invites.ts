@@ -41,6 +41,28 @@ export async function worldState(
   };
 }
 
+/** Changes whenever the world is purged. See event_state.epoch in db.ts. */
+export async function worldEpoch(world: World = WORLD_LIVE): Promise<string> {
+  const rows = await q(`SELECT epoch FROM event_state WHERE id = $1`, [world]);
+  return String(rows[0]?.epoch ?? '');
+}
+
+/**
+ * Does a returning browser's saved session still describe a real guest?
+ * Yes only if the code is still an accepted seat and, when the browser knows
+ * which epoch it was minted in, that epoch is still the world's. Sessions
+ * saved before epochs existed carry none and are judged on the code alone.
+ */
+export async function sessionStillValid(
+  code: string,
+  epoch?: string
+): Promise<boolean> {
+  const info = await codeInfo(code);
+  if (!info || info.status !== 'accepted') return false;
+  if (epoch && epoch !== (await worldEpoch(info.world))) return false;
+  return true;
+}
+
 export async function isFull(world: World = WORLD_LIVE): Promise<boolean> {
   return (await worldState(world)).full;
 }
@@ -538,6 +560,9 @@ export async function revokeGuest(code: string): Promise<RevokeResult> {
   };
 }
 
+/** SQL for a fresh epoch token — every purge issues one. */
+const NEW_EPOCH = `md5(random()::text || clock_timestamp()::text || id::text)`;
+
 /** Admin: wipe the demo world back to zero. Never touches the live party. */
 export async function purgeDemo(): Promise<number> {
   const rows = await q(`DELETE FROM codes WHERE world = $1 RETURNING id`, [WORLD_DEMO]);
@@ -545,7 +570,9 @@ export async function purgeDemo(): Promise<number> {
   // so no position can collide — and leaving it climbing made the next demo
   // guest read as "GUEST 11" in a five-seat world.
   await q(
-    `UPDATE event_state SET accepted_count = 0, next_position = 0 WHERE id = $1`,
+    `UPDATE event_state
+     SET accepted_count = 0, next_position = 0, epoch = ${NEW_EPOCH}
+     WHERE id = $1`,
     [WORLD_DEMO]
   );
   return rows.length;
@@ -572,7 +599,8 @@ export async function purgeLive(): Promise<{ codes: number; guests: number }> {
        DELETE FROM codes WHERE world = $1 RETURNING status
      ),
      reset AS (
-       UPDATE event_state SET accepted_count = 0, next_position = 0
+       UPDATE event_state
+       SET accepted_count = 0, next_position = 0, epoch = ${NEW_EPOCH}
        WHERE id = $1 RETURNING id
      )
      SELECT (SELECT count(*) FROM del) AS codes,

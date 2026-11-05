@@ -40,7 +40,8 @@ const cmd = process.argv[2] ?? 'inspect';
       process.exit(1);
     }
     await sql.query('TRUNCATE codes, attempts RESTART IDENTITY CASCADE');
-    await sql.query('UPDATE event_state SET accepted_count = 0, next_position = 0');
+    await sql.query("UPDATE event_state SET accepted_count = 0, next_position = 0, epoch = md5(random()::text || clock_timestamp()::text || id::text)"
+    );
     console.log('RESET: all codes, guests, and attempts wiped.\n');
   }
 
