@@ -13,6 +13,8 @@ import { DEFAULTS } from '@/lib/defaults';
 import type { ChainColor } from '@/lib/config';
 
 const EVENT_NAME = 'HYPERLINK';
+// Pause before the keyboard rises on its own, so the prompt can be read first.
+const KEYBOARD_DELAY_MS = 1000;
 
 type Phase =
   | 'boot'
@@ -1183,6 +1185,14 @@ export default function Home() {
     numeric;
   const inputType = numeric ? 'tel' : 'text';
 
+  // Raise the keyboard on its own whenever the terminal is waiting for input,
+  // after a short pause so the prompt text can be read first.
+  useEffect(() => {
+    if (!awaiting) return;
+    const t = setTimeout(() => inputRef.current?.focus(), KEYBOARD_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [awaiting, phase]);
+
   return (
     <Screen
       done={done}
@@ -1195,16 +1205,18 @@ export default function Home() {
         inputRef.current?.focus();
       }}
     >
-      {awaiting && (
-        <input
+      {/* Always mounted so focus (and the open keyboard) survives between
+          prompts; typing is ignored while the terminal is busy. */}
+      <input
           ref={inputRef}
           className="ghost"
-          value={input}
-          onChange={(e) =>
-            setInput(freeText ? e.target.value : e.target.value.toUpperCase())
-          }
+          value={awaiting ? input : ''}
+          onChange={(e) => {
+            if (!awaiting) return;
+            setInput(freeText ? e.target.value : e.target.value.toUpperCase());
+          }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') submit(input);
+            if (e.key === 'Enter' && awaiting) submit(input);
           }}
           type={inputType}
           inputMode={numeric ? 'tel' : 'text'}
@@ -1221,10 +1233,8 @@ export default function Home() {
           autoCorrect="off"
           spellCheck={false}
           enterKeyHint="go"
-          autoFocus
           aria-label={phase}
         />
-      )}
     </Screen>
   );
 }
