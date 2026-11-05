@@ -60,8 +60,10 @@ export function buildInviteMessage(opts: {
    *
    * What it cost was believability. A bare link plus an unexplained six-
    * character code plus "don't post it" is the exact shape of a phishing text,
-   * and the terminal it opens on says UNAUTHORIZED ACCESS IS LOGGED. Enough
-   * people read that as a scam and never tap.
+   * and the terminal it opens on used to say UNAUTHORIZED ACCESS IS LOGGED.
+   * Enough people read that as a scam and never tap. (It now opens by saying
+   * it is a private invitation from someone who knows the guest, and the
+   * trace/logging lines are gone.)
    *
    * The fix is not explanation. An earlier draft apologised for the site
    * being theatrical, which kills the mystique to buy safety it did not need.

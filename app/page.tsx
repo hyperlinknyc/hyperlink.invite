@@ -98,10 +98,12 @@ const BOOT: Line[] = [
   L('CARRIER DETECTED ..... 300 BAUD', 'dim'),
   L('HANDSHAKE ............ OK', 'dim'),
   L('ENCRYPTION ........... ACTIVE', 'dim'),
-  L('TRACE SUPPRESSION .... ACTIVE', 'dim'),
   BLANK,
-  L('UNAUTHORIZED ACCESS IS LOGGED.'),
-  L('THIS TERMINAL DOES NOT EXIST.', 'dim'),
+  // Said plainly, once, in the terminal's own voice. A cold open that talked
+  // about traces and logged access read as a hack to anyone arriving without
+  // context; this still withholds the date and the address, which is the point.
+  L('THIS IS A PRIVATE INVITATION.'),
+  L('SOMEONE WHO KNOWS YOU SENT IT.', 'dim'),
   BLANK,
 ];
 
@@ -1275,7 +1277,7 @@ export default function Home() {
     >
       {gate && (
         <div className="gate">
-          <div className="line dim">INCOMING CARRIER ..... 300 BAUD</div>
+          <div className="line">YOU HAVE AN INVITATION.</div>
           <div className="line gate-cta">[ TAP TO ANSWER ]</div>
         </div>
       )}
