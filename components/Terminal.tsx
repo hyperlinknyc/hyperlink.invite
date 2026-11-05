@@ -215,9 +215,21 @@ export function Screen({
   children?: React.ReactNode;
 }) {
   const logRef = useRef<HTMLDivElement>(null);
+  // Follow the output only while the guest is at the bottom. Scrolling up to
+  // reread must stick: forcing the view down on every character printed made
+  // it impossible to read anything above while the copy was still rolling.
+  const stickRef = useRef(true);
+  const onScroll = () => {
+    const el = logRef.current;
+    if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+  // Typing means they are back in the conversation, so follow again.
+  useEffect(() => {
+    stickRef.current = true;
+  }, [inputLine?.value]);
   useEffect(() => {
     const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   });
 
   // Track the visual viewport so the terminal shrinks above the on-screen
@@ -228,7 +240,7 @@ export function Screen({
     const sync = () => {
       document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
       const el = logRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el && stickRef.current) el.scrollTop = el.scrollHeight;
     };
     sync();
     vv.addEventListener('resize', sync);
@@ -242,7 +254,7 @@ export function Screen({
   return (
     <div className="crt" onClick={onTap}>
       {progress && <ProgressStrip {...progress} />}
-      <div className="log" ref={logRef}>
+      <div className="log" ref={logRef} onScroll={onScroll}>
         {done.map((line, i) =>
           line.logo ? (
             <Logo
