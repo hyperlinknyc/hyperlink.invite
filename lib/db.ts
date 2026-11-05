@@ -7,7 +7,7 @@ type Row = Record<string, unknown>;
 type Stmt = string | [string, unknown[]];
 
 import { DEFAULTS, WORLD_LIVE, WORLD_DEMO } from './defaults';
-import { CHAIN_PALETTE } from './config';
+import { CHAIN_PALETTE, CHAIN_RENAMED } from './config';
 
 const SCHEMA: Stmt[] = [
   // ── event_state: one row per world (1 = live party, 2 = demo sandbox) ──
@@ -97,6 +97,16 @@ const SCHEMA: Stmt[] = [
   // A seed gets one when minted; every code inherits its issuer's on accept.
   // Lives only here — never encoded in the code string.
   `ALTER TABLE codes ADD COLUMN IF NOT EXISTS chain_color TEXT`,
+  // Renamed colours (CHAIN_RENAMED): rewrite stored names first, so the backfill
+  // below sees the new name as taken and cannot hand it to a second chain.
+  // Skipped for any old name that is a palette entry again.
+  ...Object.entries(CHAIN_RENAMED).map(
+    ([from, to]): Stmt => [
+      `UPDATE codes SET chain_color = $2
+       WHERE chain_color = $1 AND NOT ($1 = ANY(string_to_array($3, ',')))`,
+      [from, to, CHAIN_PALETTE.map((p) => p.name).join(',')],
+    ]
+  ),
   // Backfill, step 1: seeds that predate colours get one in palette order,
   // oldest first, skipping colours a live chain already holds. Only chains
   // someone is still in (an unused or accepted code) count — a killed or
