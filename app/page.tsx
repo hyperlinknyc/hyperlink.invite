@@ -316,10 +316,12 @@ function namePromptLines(
     ...(invitedName
       ? [
           L(`${invitedName.toUpperCase()} — AND YOUR LAST NAME?`),
-          L('THAT IS THE NAME ON THE DOOR.', 'dim'),
+          L('FIRST AND LAST: YOUR FULL NAME IS THE NAME', 'dim'),
+          L('ON THE DOOR.', 'dim'),
         ]
       : [
-          L('WHAT DO WE CALL YOU?'),
+          L('TYPE YOUR FULL NAME.'),
+          L('FIRST AND LAST.', 'dim'),
           L('THIS IS THE NAME ON THE DOOR.', 'dim'),
           L('NOTHING ELSE IS.', 'dim'),
         ]),
@@ -535,11 +537,11 @@ export default function Home() {
     setPhaseState(p);
   };
   const [input, setInput] = useState('');
-  // The terminal opens on a gate. Phones only raise the keyboard from code
-  // inside a tap, so this tap — dressed as answering the incoming call — is
-  // where the input takes focus. It stays mounted and focused, with its
+  // After the opening logo comes a gate. Phones only raise the keyboard from
+  // code inside a tap, so this tap — dressed as answering the incoming call —
+  // is where the input takes focus. It stays mounted and focused, with its
   // keyboard held back until a prompt actually needs an answer.
-  const [gate, setGate] = useState(true);
+  const [gate, setGate] = useState(false);
   const [intro, setIntro] = useState(false);
   // True once a prompt has waited a moment with no keyboard on screen, on a
   // touch device: the guest may not know the screen itself is the way in.
@@ -583,7 +585,6 @@ export default function Home() {
       if (process.env.NODE_ENV !== 'production') {
         const want = new URLSearchParams(window.location.search).get('chainPreview');
         if (want) {
-          setGate(false);
           const status = await statusP;
           if (status?.settings) settingsRef.current = status.settings;
           const { CHAIN_PALETTE, chainColor } = await import('@/lib/config');
@@ -605,19 +606,20 @@ export default function Home() {
         }
       }
 
-      // Hold on the gate until the guest answers (see `gate` above).
-      await answered;
-      setGate(false);
-
       // The mark powers on first, alone and centred on the screen — flash,
-      // tear, lock in — so the page reads as a real, branded thing before any
-      // code starts to print.
+      // tear, lock in — so the page reads as a real, branded thing before
+      // anything is asked of the guest or any code starts to print.
       if (!reducedMotion()) {
         setIntro(true);
         await new Promise<void>((r) => setTimeout(r, INTRO_MS));
         setIntro(false);
-        await new Promise<void>((r) => setTimeout(r, 250)); // overlay fade-out
+        await new Promise<void>((r) => setTimeout(r, 350)); // a beat of black
       }
+
+      // Then the line rings, and the guest picks up (see `gate` above).
+      setGate(true);
+      await answered;
+      setGate(false);
       await typeLines(BOOT);
       const status = await statusP;
       if (status?.settings) settingsRef.current = status.settings;
@@ -1202,7 +1204,9 @@ export default function Home() {
     );
   const prompt =
     phase === 'name'
-      ? 'NAME > '
+      ? invitedNameRef.current
+        ? 'LAST NAME > '
+        : 'FULL NAME > '
       : phase === 'invitee'
         ? 'THEIR FIRST NAME > '
         : phase === 'claimname'
