@@ -260,8 +260,41 @@ a.cta:active {
   50% { opacity: 0.82; }
 }
 
+/* Power-on glitch: the mark flashes up, tears, splits into red/blue ghosts and
+   locks in, before any text prints. Lives on the wrapper so it never fights the
+   inline colour/filter the chain reveal paints on the svg. */
+.logo-glitch {
+  animation: logo-glitch 1.7s steps(1, end) both;
+}
+
+@keyframes logo-glitch {
+  0%   { opacity: 0; }
+  6%   { opacity: 1; transform: translateX(-6px) skewX(12deg);
+         filter: drop-shadow(5px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(-5px 0 0 rgba(40, 140, 255, 0.9)); }
+  11%  { opacity: 0; transform: none; filter: none; }
+  16%  { opacity: 1; transform: translateX(8px);
+         clip-path: inset(0 0 58% 0);
+         filter: drop-shadow(-4px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(4px 0 0 rgba(40, 140, 255, 0.9)); }
+  22%  { opacity: 0.15; clip-path: none; transform: none; filter: none; }
+  28%  { opacity: 1; transform: translateX(-10px) skewX(-14deg);
+         clip-path: inset(42% 0 0 0);
+         filter: drop-shadow(6px 0 0 rgba(255, 40, 80, 0.9)) drop-shadow(-6px 0 0 rgba(40, 140, 255, 0.9)); }
+  36%  { opacity: 0; clip-path: none; transform: none; filter: none; }
+  42%  { opacity: 1; transform: translateX(3px);
+         filter: brightness(2.2) drop-shadow(3px 0 0 rgba(255, 40, 80, 0.8)); }
+  50%  { opacity: 0.3; transform: none; filter: none; }
+  58%  { opacity: 1; transform: translateX(-4px) skewX(6deg); clip-path: inset(20% 0 35% 0);
+         filter: drop-shadow(-4px 0 0 rgba(40, 140, 255, 0.9)); }
+  66%  { opacity: 1; clip-path: none; transform: none; filter: brightness(1.8); }
+  74%  { opacity: 0.4; filter: none; }
+  82%  { opacity: 1; transform: translateX(2px); filter: drop-shadow(2px 0 0 rgba(255, 40, 80, 0.7)); }
+  90%  { opacity: 1; transform: none; filter: brightness(1.4); }
+  100% { opacity: 1; transform: none; filter: none; clip-path: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .logo { animation: none; }
+  .logo-glitch { animation: none; }
 }
 
 /* The chain's name beneath the mark, in the chain's colour (set inline).

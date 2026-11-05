@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   BLANK,
   L,
+  GLITCH_LOGO,
   LOGO,
   Line,
   Screen,
@@ -13,6 +14,8 @@ import { DEFAULTS } from '@/lib/defaults';
 import type { ChainColor } from '@/lib/config';
 
 const EVENT_NAME = 'HYPERLINK';
+// How long the opening logo flashes and glitches before any text prints.
+const GLITCH_MS = 1900;
 // Pause before the keyboard rises on its own, so the prompt can be read first.
 const KEYBOARD_DELAY_MS = 1000;
 
@@ -583,7 +586,12 @@ export default function Home() {
         }
       }
 
-      await typeLines(BOOT);
+      // The mark powers on first — flash, tear, lock in — so the page reads as
+      // a real, branded thing before any code starts to print.
+      const intro: Line[] = reducedMotion()
+        ? [LOGO]
+        : [GLITCH_LOGO, { spans: [], wait: new Promise<void>((r) => setTimeout(r, GLITCH_MS)) }];
+      await typeLines([...intro, ...BOOT]);
       const status = await statusP;
       if (status?.settings) settingsRef.current = status.settings;
 
