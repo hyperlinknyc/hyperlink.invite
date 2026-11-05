@@ -93,20 +93,6 @@ const FAULT_LINES: Line[] = [
   L('WAIT AND TRANSMIT AGAIN.', 'dim'),
 ];
 
-const BOOT: Line[] = [
-  L(`${EVENT_NAME} PRIVATE NODE [BK-03]`),
-  L('CARRIER DETECTED ..... 300 BAUD', 'dim'),
-  L('HANDSHAKE ............ OK', 'dim'),
-  L('ENCRYPTION ........... ACTIVE', 'dim'),
-  BLANK,
-  // Said plainly, once, in the terminal's own voice. A cold open that talked
-  // about traces and logged access read as a hack to anyone arriving without
-  // context; this still withholds the date and the address, which is the point.
-  L('THIS IS A PRIVATE INVITATION.'),
-  L('SOMEONE WHO KNOWS YOU SENT IT.', 'dim'),
-  BLANK,
-];
-
 const FULL_LINES: Line[] = [
   L('CAPACITY REACHED.', 'warn'),
   L('THE ROOM IS SEALED.'),
@@ -622,7 +608,6 @@ export default function Home() {
       setGate(true);
       await answered;
       setGate(false);
-      await typeLines(BOOT);
       const status = await statusP;
       if (status?.settings) settingsRef.current = status.settings;
 
@@ -705,7 +690,9 @@ export default function Home() {
         return;
       }
 
-      await typeLines(ACCESS_PROMPT);
+      // No boot chatter: the first thing printed is the invitation itself. A
+      // link already carries its code, so it just opens; otherwise ask for it.
+      await typeLines(c ? [L('OPENING YOUR INVITATION ...', 'dim')] : ACCESS_PROMPT);
       setPhase('code');
 
       if (c) {
