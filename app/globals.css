@@ -212,6 +212,28 @@ a.cta {
   text-shadow: none;
 }
 
+/* Green means "this is for you": every tappable [ACTION] and the live input
+   line (prompt, what they type, cursor). Plain text is never green, so a guest
+   learns the rule at the first prompt. */
+.tap {
+  color: var(--green);
+}
+.live {
+  color: var(--green);
+}
+.live .cursor {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(62, 230, 62, 0.6);
+}
+.live-hint {
+  color: var(--green);
+  opacity: 0.75;
+  animation: blink 1.4s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-hint { animation: none; }
+}
+
 /* Pressing a green button fills it, so a tap visibly lands. */
 .act.cta:hover,
 .act.cta:active,

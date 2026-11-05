@@ -156,6 +156,12 @@ function boxAround(code: string): Line[] {
   ];
 }
 
+// The first thing a guest must do: say what to do, and where the code lives.
+const ACCESS_PROMPT: Line[] = [
+  L('ENTER YOUR ACCESS CODE.'),
+  L('TYPE IT BELOW — IT CAME WITH YOUR INVITE.', 'dim'),
+];
+
 const VERIFY_PROMPT: Line[] = [
   BLANK,
   L('THIS INVITATION WAS SENT TO ONE PHONE.'),
@@ -430,7 +436,7 @@ function payoffLines(s: Session, restored = false, animateChain = false): Line[]
     L('ONE CODE. ONE PERSON. NAME THEM.'),
     BLANK,
     L('WHO ARE YOU BRINGING?'),
-    L('A FIRST NAME IS ENOUGH.'),
+    L('TYPE THEIR FIRST NAME. THAT IS ENOUGH.'),
     L('YOU PICK THEM FROM YOUR OWN CONTACTS', 'dim'),
     L('ON THE NEXT TAP. THERE IS NO NUMBER', 'dim'),
     L('TO LOOK UP.', 'dim'),
@@ -531,9 +537,14 @@ export default function Home() {
   const [input, setInput] = useState('');
   // The terminal opens on a gate. Phones only raise the keyboard from code
   // inside a tap, so this tap — dressed as answering the incoming call — is
-  // where the input is focused. It stays mounted, so the keyboard stays up.
+  // where the input takes focus. It stays mounted and focused, with its
+  // keyboard held back until a prompt actually needs an answer.
   const [gate, setGate] = useState(true);
   const [intro, setIntro] = useState(false);
+  // True once a prompt has waited a moment with no keyboard on screen, on a
+  // touch device: the guest may not know the screen itself is the way in.
+  const [hintReady, setHintReady] = useState(false);
+  const [keyboardUp, setKeyboardUp] = useState(false);
   const answerRef = useRef<() => void>(() => {});
   const inputRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef('');
@@ -690,7 +701,7 @@ export default function Home() {
         return;
       }
 
-      await typeLines([L('ENTER ACCESS CODE')]);
+      await typeLines(ACCESS_PROMPT);
       setPhase('code');
 
       if (c) {
@@ -769,7 +780,7 @@ export default function Home() {
       setPhase('decision');
     } else if (res?.result === 'dead') {
       await typeLines(DEAD_LINES);
-      await typeLines([L('ENTER ACCESS CODE')]);
+      await typeLines(ACCESS_PROMPT);
     } else if (res?.result === 'full') {
       await typeLines(FULL_LINES);
       setPhase('end');
@@ -782,7 +793,7 @@ export default function Home() {
       await typeLines(FAULT_LINES);
     } else {
       const msg = DENIALS[Math.min(denialsRef.current++, DENIALS.length - 1)];
-      await typeLines([L(msg, 'warn'), L('ENTER ACCESS CODE')]);
+      await typeLines([L(msg, 'warn'), ...ACCESS_PROMPT]);
     }
   }
 
@@ -1209,13 +1220,37 @@ export default function Home() {
     numeric;
   const inputType = numeric ? 'tel' : 'text';
 
-  // Raise the keyboard on its own whenever the terminal is waiting for input,
-  // after a short pause so the prompt text can be read first.
+  // Raise the keyboard whenever the terminal is waiting for input, after a
+  // short pause so the prompt text can be read first. The input already holds
+  // focus from the opening tap; going from inputMode 'none' to a real mode is
+  // what brings the keyboard up. The focus() covers a lost focus.
   useEffect(() => {
     if (!awaiting) return;
     const t = setTimeout(() => inputRef.current?.focus(), KEYBOARD_DELAY_MS);
     return () => clearTimeout(t);
   }, [awaiting, phase]);
+
+  // The visual viewport shrinks when a phone keyboard is open.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => setKeyboardUp(window.innerHeight - vv.height > 120);
+    sync();
+    vv.addEventListener('resize', sync);
+    return () => vv.removeEventListener('resize', sync);
+  }, []);
+
+  useEffect(() => {
+    setHintReady(false);
+    if (!awaiting) return;
+    if (!window.matchMedia('(pointer: coarse)').matches) return; // desktop: no hint
+    const t = setTimeout(() => setHintReady(true), KEYBOARD_DELAY_MS + 900);
+    return () => clearTimeout(t);
+  }, [awaiting, phase]);
+
+  // Not on the accept/decline step: its own line already says tap or type.
+  const typing = phase !== 'decision' && phase !== 'confirmDecline';
+  const hint = awaiting && typing && hintReady && !keyboardUp ? 'TAP ANYWHERE TO TYPE' : null;
 
   return (
     <>
@@ -1226,7 +1261,8 @@ export default function Home() {
       onClick={
         gate
           ? () => {
-              // Inside the tap: this is what lets the keyboard come up.
+              // Inside the tap: takes focus (no keyboard yet — see inputMode)
+              // so the input can raise it later without another tap.
               inputRef.current?.focus();
               answerRef.current();
             }
@@ -1245,6 +1281,7 @@ export default function Home() {
       done={done}
       current={current}
       inputLine={awaiting ? { prompt, value: input } : null}
+      hint={hint}
       onAct={onAct}
       onSubmit={awaiting ? () => submit(input) : undefined}
       onTap={() => {
@@ -1266,7 +1303,9 @@ export default function Home() {
             if (e.key === 'Enter' && awaiting) submit(input);
           }}
           type={inputType}
-          inputMode={numeric ? 'tel' : 'text'}
+          // 'none' keeps focus without a keyboard. It flips to the real mode
+          // when a prompt needs an answer, which is what raises the keyboard.
+          inputMode={awaiting ? (numeric ? 'tel' : 'text') : 'none'}
           autoCapitalize={
             phase === 'name' || phase === 'invitee' || phase === 'claimname'
               ? 'words'
