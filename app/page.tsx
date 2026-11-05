@@ -531,7 +531,8 @@ export default function Home() {
   const [input, setInput] = useState('');
   // The terminal opens on a gate. Phones only raise the keyboard from code
   // inside a tap, so this tap — dressed as answering the incoming call — is
-  // where the input is focused. It stays mounted, so the keyboard stays up.
+  // where the input takes focus. It stays mounted and focused, with its
+  // keyboard held back until a prompt actually needs an answer.
   const [gate, setGate] = useState(true);
   const [intro, setIntro] = useState(false);
   const answerRef = useRef<() => void>(() => {});
@@ -1209,8 +1210,10 @@ export default function Home() {
     numeric;
   const inputType = numeric ? 'tel' : 'text';
 
-  // Raise the keyboard on its own whenever the terminal is waiting for input,
-  // after a short pause so the prompt text can be read first.
+  // Raise the keyboard whenever the terminal is waiting for input, after a
+  // short pause so the prompt text can be read first. The input already holds
+  // focus from the opening tap; going from inputMode 'none' to a real mode is
+  // what brings the keyboard up. The focus() covers a lost focus.
   useEffect(() => {
     if (!awaiting) return;
     const t = setTimeout(() => inputRef.current?.focus(), KEYBOARD_DELAY_MS);
@@ -1226,7 +1229,8 @@ export default function Home() {
       onClick={
         gate
           ? () => {
-              // Inside the tap: this is what lets the keyboard come up.
+              // Inside the tap: takes focus (no keyboard yet — see inputMode)
+              // so the input can raise it later without another tap.
               inputRef.current?.focus();
               answerRef.current();
             }
@@ -1266,7 +1270,9 @@ export default function Home() {
             if (e.key === 'Enter' && awaiting) submit(input);
           }}
           type={inputType}
-          inputMode={numeric ? 'tel' : 'text'}
+          // 'none' keeps focus without a keyboard. It flips to the real mode
+          // when a prompt needs an answer, which is what raises the keyboard.
+          inputMode={awaiting ? (numeric ? 'tel' : 'text') : 'none'}
           autoCapitalize={
             phase === 'name' || phase === 'invitee' || phase === 'claimname'
               ? 'words'
